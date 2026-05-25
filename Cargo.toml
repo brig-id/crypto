@@ -1,0 +1,44 @@
+[package]
+name = "brigid-crypto"
+version = "0.0.1"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+rust-version = "1.85"
+
+[dependencies]
+# Symmetric encryption
+aes-gcm = { version = "0.10", features = ["aes"] }
+# Key derivation
+hkdf = "0.12"
+sha3 = "0.10"
+# Classical signatures
+ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
+# Post-quantum KEM (FIPS 203)
+ml-kem = { version = "0.3", features = ["getrandom", "zeroize"] }
+# Post-quantum signatures (FIPS 204)
+ml-dsa = { version = "0.1", features = ["getrandom", "zeroize"] }
+# X25519 for hybrid KEM
+x25519-dalek = { version = "2", features = ["static_secrets"] }
+# CSPRNG
+rand_core = { version = "0.6", features = ["getrandom"] }
+# Memory safety
+zeroize = { version = "1", features = ["derive"] }
+secrecy = "0.8"
+# Hex encoding for MASTER_KEY
+hex = "0.4"
+# Error handling
+thiserror = "2"
+
+[dev-dependencies]
+rand = "0.8"
+
+[profile.release]
+panic = "abort"
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"
+
+[profile.dev]
+panic = "abort"
+
