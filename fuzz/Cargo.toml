@@ -1,0 +1,30 @@
+[package]
+name = "brigid-crypto-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+brigid-crypto = { path = ".." }
+
+[[bin]]
+name = "fuzz_decrypt"
+path = "fuzz_targets/fuzz_decrypt.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_hybrid_decapsulate"
+path = "fuzz_targets/fuzz_hybrid_decapsulate.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_hybrid_verify"
+path = "fuzz_targets/fuzz_hybrid_verify.rs"
+test = false
+doc = false
