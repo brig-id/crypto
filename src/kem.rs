@@ -26,7 +26,7 @@ const X25519_KEY_SIZE: usize = 32;
 
 pub const HYBRID_PK_SIZE: usize = MLKEM_EK_SIZE + X25519_KEY_SIZE; // 1216
 pub const HYBRID_SK_SIZE: usize = MLKEM_SEED_SIZE + X25519_KEY_SIZE; //   96
-pub const HYBRID_CT_SIZE: usize = MLKEM_CT_SIZE + X25519_KEY_SIZE;  // 1120
+pub const HYBRID_CT_SIZE: usize = MLKEM_CT_SIZE + X25519_KEY_SIZE; // 1120
 
 /// Hybrid encapsulation (public) key: ML-KEM-768 + X25519.
 pub struct HybridKemPublicKey {
@@ -62,7 +62,10 @@ impl HybridKemPublicKey {
         let mut x25519_pk = [0u8; X25519_KEY_SIZE];
         mlkem_ek_bytes.copy_from_slice(&bytes[..MLKEM_EK_SIZE]);
         x25519_pk.copy_from_slice(&bytes[MLKEM_EK_SIZE..]);
-        Self { mlkem_ek_bytes, x25519_pk }
+        Self {
+            mlkem_ek_bytes,
+            x25519_pk,
+        }
     }
 }
 
@@ -81,7 +84,10 @@ impl HybridKemSecretKey {
         let mut x25519_sk = Zeroizing::new([0u8; X25519_KEY_SIZE]);
         mlkem_seed.copy_from_slice(&bytes[..MLKEM_SEED_SIZE]);
         x25519_sk.copy_from_slice(&bytes[MLKEM_SEED_SIZE..]);
-        Self { mlkem_seed, x25519_sk }
+        Self {
+            mlkem_seed,
+            x25519_sk,
+        }
     }
 }
 
@@ -100,7 +106,10 @@ impl HybridCiphertext {
         let mut x25519_eph_pk = [0u8; X25519_KEY_SIZE];
         mlkem_ct_bytes.copy_from_slice(&bytes[..MLKEM_CT_SIZE]);
         x25519_eph_pk.copy_from_slice(&bytes[MLKEM_CT_SIZE..]);
-        Self { mlkem_ct_bytes, x25519_eph_pk }
+        Self {
+            mlkem_ct_bytes,
+            x25519_eph_pk,
+        }
     }
 }
 
@@ -109,7 +118,7 @@ pub fn hybrid_kem_keygen() -> (HybridKemPublicKey, HybridKemSecretKey) {
     // ML-KEM-768 (getrandom feature provides entropy internally)
     let (dk, ek) = MlKem768::generate_keypair();
     let ek_exported = ek.to_bytes(); // Key<EK768> = Array<u8, U1184>
-    let dk_seed = dk.to_bytes();     // Seed = Array<u8, U64>
+    let dk_seed = dk.to_bytes(); // Seed = Array<u8, U64>
 
     let mut mlkem_ek_bytes = [0u8; MLKEM_EK_SIZE];
     mlkem_ek_bytes.copy_from_slice(ek_exported.as_ref());
@@ -177,8 +186,7 @@ pub fn hybrid_decapsulate(
     ct: &HybridCiphertext,
 ) -> Result<Zeroizing<[u8; 32]>> {
     // Reconstruct ML-KEM-768 decapsulation key from stored seed
-    let seed = ml_kem::Seed::try_from(sk.mlkem_seed.as_ref())
-        .map_err(|_| Error::Decapsulate)?;
+    let seed = ml_kem::Seed::try_from(sk.mlkem_seed.as_ref()).map_err(|_| Error::Decapsulate)?;
     let dk: DecapsulationKey768 = DecapsulationKey768::from_seed(seed);
 
     // ML-KEM decapsulate (infallible; implicit rejection)
