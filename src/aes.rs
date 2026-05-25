@@ -71,10 +71,7 @@ pub fn encrypt_with_master(master: &MasterKey, plaintext: &[u8]) -> Result<Encry
 }
 
 /// Decrypt using the master key directly.
-pub fn decrypt_with_master(
-    master: &MasterKey,
-    blob: &EncryptedBlob,
-) -> Result<Zeroizing<Vec<u8>>> {
+pub fn decrypt_with_master(master: &MasterKey, blob: &EncryptedBlob) -> Result<Zeroizing<Vec<u8>>> {
     decrypt(master.expose(), blob)
 }
 

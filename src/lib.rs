@@ -11,8 +11,8 @@ pub mod hkdf;
 pub mod kem;
 pub mod master_key;
 
-pub use error::{Error, Result};
-pub use master_key::MasterKey;
 pub use aes::EncryptedBlob;
-pub use kem::{HybridCiphertext, HybridKemPublicKey, HybridKemSecretKey};
 pub use dsa::{HybridDsaSigningKey, HybridDsaVerifyingKey, HybridSignature};
+pub use error::{Error, Result};
+pub use kem::{HybridCiphertext, HybridKemPublicKey, HybridKemSecretKey};
+pub use master_key::MasterKey;

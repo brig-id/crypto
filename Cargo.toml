@@ -41,4 +41,3 @@ strip = "debuginfo"
 
 [profile.dev]
 panic = "abort"
-

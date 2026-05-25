@@ -1,7 +1,7 @@
 #![no_main]
 // Fuzz target: feed arbitrary bytes as a HybridCiphertext into `hybrid_decapsulate`.
 // The function must NEVER panic regardless of input (implicit rejection expected).
-use brigid_crypto::kem::{self, HybridCiphertext, HYBRID_CT_SIZE};
+use brigid_crypto::kem::{self, HYBRID_CT_SIZE, HybridCiphertext};
 use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {

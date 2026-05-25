@@ -14,7 +14,8 @@ use crate::{Error, MasterKey, Result};
 pub fn derive_key(master: &MasterKey, info: &[u8], length: usize) -> Result<Zeroizing<Vec<u8>>> {
     let hk = Hkdf::<Sha3_256>::new(None, master.expose());
     let mut okm = Zeroizing::new(vec![0u8; length]);
-    hk.expand(info, &mut okm).map_err(|_| Error::KeyDerivation)?;
+    hk.expand(info, &mut okm)
+        .map_err(|_| Error::KeyDerivation)?;
     Ok(okm)
 }
 
@@ -39,7 +40,8 @@ pub fn derive_user_key(
 
     let hk = Hkdf::<Sha3_256>::new(None, master.expose());
     let mut okm = Zeroizing::new([0u8; 32]);
-    hk.expand(&info, &mut *okm).map_err(|_| Error::KeyDerivation)?;
+    hk.expand(&info, &mut *okm)
+        .map_err(|_| Error::KeyDerivation)?;
     Ok(okm)
 }
 

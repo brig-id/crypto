@@ -10,7 +10,7 @@
 
 use ed25519_dalek::{Signature as Ed25519Signature, SigningKey as Ed25519SigningKey};
 use ml_dsa::{
-    Generate, Keypair, KeyExport, KeyInit, MlDsa65, SignatureEncoding, Signer,
+    Generate, KeyExport, KeyInit, Keypair, MlDsa65, SignatureEncoding, Signer,
     SigningKey as MlDsaSigningKey, Verifier, VerifyingKey as MlDsaVerifyingKey,
 };
 use zeroize::Zeroizing;
@@ -61,7 +61,10 @@ impl HybridSignature {
         let mldsa_sig = bytes[4..4 + ml_len].to_vec();
         let mut ed25519_sig = [0u8; 64];
         ed25519_sig.copy_from_slice(&bytes[4 + ml_len..]);
-        Ok(Self { mldsa_sig, ed25519_sig })
+        Ok(Self {
+            mldsa_sig,
+            ed25519_sig,
+        })
     }
 }
 
@@ -89,7 +92,10 @@ impl HybridDsaVerifyingKey {
         let mldsa_vk_bytes = bytes[4..4 + ml_len].to_vec();
         let mut ed25519_vk_bytes = [0u8; 32];
         ed25519_vk_bytes.copy_from_slice(&bytes[4 + ml_len..]);
-        Ok(Self { mldsa_vk_bytes, ed25519_vk_bytes })
+        Ok(Self {
+            mldsa_vk_bytes,
+            ed25519_vk_bytes,
+        })
     }
 }
 
@@ -99,7 +105,7 @@ pub fn hybrid_keygen() -> (HybridDsaSigningKey, HybridDsaVerifyingKey) {
     let mldsa_sk = MlDsaSigningKey::<MlDsa65>::generate();
     let mldsa_vk = mldsa_sk.verifying_key();
     let mldsa_seed_exported = mldsa_sk.to_bytes(); // KeyExport::to_bytes() → Seed = [u8; 32]
-    let mldsa_vk_exported = mldsa_vk.to_bytes();   // KeyExport::to_bytes() → Key<VK>
+    let mldsa_vk_exported = mldsa_vk.to_bytes(); // KeyExport::to_bytes() → Key<VK>
 
     // Ed25519
     let ed25519_sk = Ed25519SigningKey::generate(&mut rand_core::OsRng);
@@ -151,18 +157,22 @@ pub fn hybrid_verify(
         .map_err(|_| Error::Verify)?;
 
     // Reconstruct Ed25519 verifying key
-    let ed25519_vk = ed25519_dalek::VerifyingKey::from_bytes(&vk.ed25519_vk_bytes)
-        .map_err(|_| Error::Verify)?;
+    let ed25519_vk =
+        ed25519_dalek::VerifyingKey::from_bytes(&vk.ed25519_vk_bytes).map_err(|_| Error::Verify)?;
 
     // Verify ML-DSA-65
     let mldsa_sig = ml_dsa::Signature::<MlDsa65>::try_from(sig.mldsa_sig.as_slice())
         .map_err(|_| Error::Verify)?;
-    mldsa_vk.verify(message, &mldsa_sig).map_err(|_| Error::Verify)?;
+    mldsa_vk
+        .verify(message, &mldsa_sig)
+        .map_err(|_| Error::Verify)?;
 
     // Verify Ed25519
     let ed25519_sig = Ed25519Signature::from_bytes(&sig.ed25519_sig);
     use ed25519_dalek::Verifier as _;
-    ed25519_vk.verify(message, &ed25519_sig).map_err(|_| Error::Verify)?;
+    ed25519_vk
+        .verify(message, &ed25519_sig)
+        .map_err(|_| Error::Verify)?;
 
     Ok(())
 }
