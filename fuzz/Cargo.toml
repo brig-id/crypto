@@ -28,3 +28,9 @@ name = "fuzz_hybrid_verify"
 path = "fuzz_targets/fuzz_hybrid_verify.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "fuzz_hkdf_derive"
+path = "fuzz_targets/fuzz_hkdf_derive.rs"
+test = false
+doc = false
