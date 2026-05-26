@@ -18,7 +18,7 @@ impl MasterKey {
     pub fn from_env() -> Result<Self> {
         let hex_str = Zeroizing::new(
             std::env::var("BRIGID_MASTER_KEY")
-                .map_err(|_| Error::InvalidMasterKey("BRIGID_MASTER_KEY not set"))?,
+                .map_err(|_| Error::InvalidMasterKey("master key environment variable not set"))?,
         );
         Self::from_hex(&hex_str)
     }
@@ -31,9 +31,9 @@ impl MasterKey {
                 "must be exactly 64 hex characters (32 bytes)",
             ));
         }
-        let mut bytes = [0u8; 32];
-        hex::decode_to_slice(hex_str, &mut bytes)?;
-        Ok(Self(Secret::new(bytes)))
+        let mut bytes = Zeroizing::new([0u8; 32]);
+        hex::decode_to_slice(hex_str, &mut *bytes)?;
+        Ok(Self(Secret::new(*bytes)))
     }
 
     /// Load from a file containing a hex-encoded key (64 hex chars).
