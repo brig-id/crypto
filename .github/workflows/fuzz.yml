@@ -1,0 +1,59 @@
+name: Fuzz
+
+on:
+  push:
+    branches: [main, dev]
+  schedule:
+    # Run daily at 03:00 UTC
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  fuzz:
+    name: Fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - fuzz_decrypt
+          - fuzz_hkdf_derive
+          - fuzz_hybrid_decapsulate
+          - fuzz_hybrid_verify
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      - name: Restore corpus cache
+        uses: actions/cache/restore@v4
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.sha }}
+          restore-keys: |
+            fuzz-corpus-${{ matrix.target }}-
+
+      - name: Run fuzzer (300 s)
+        run: |
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            -- -max_total_time=300 -max_len=65536
+
+      - name: Save corpus cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: fuzz/corpus/${{ matrix.target }}
+          key: fuzz-corpus-${{ matrix.target }}-${{ github.sha }}
+
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: crash-${{ matrix.target }}-${{ github.sha }}
+          path: |
+            fuzz/artifacts/${{ matrix.target }}/
