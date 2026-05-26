@@ -5,6 +5,7 @@
 //! It is never logged or included in error messages.
 
 use secrecy::{ExposeSecret, Secret};
+use zeroize::Zeroizing;
 
 use crate::{Error, Result};
 
@@ -15,8 +16,10 @@ pub struct MasterKey(Secret<[u8; 32]>);
 impl MasterKey {
     /// Load from `BRIGID_MASTER_KEY` environment variable (64 hex chars).
     pub fn from_env() -> Result<Self> {
-        let hex_str = std::env::var("BRIGID_MASTER_KEY")
-            .map_err(|_| Error::InvalidMasterKey("BRIGID_MASTER_KEY not set"))?;
+        let hex_str = Zeroizing::new(
+            std::env::var("BRIGID_MASTER_KEY")
+                .map_err(|_| Error::InvalidMasterKey("BRIGID_MASTER_KEY not set"))?,
+        );
         Self::from_hex(&hex_str)
     }
 
@@ -35,7 +38,7 @@ impl MasterKey {
 
     /// Load from a file containing a hex-encoded key (64 hex chars).
     pub fn from_file(path: &std::path::Path) -> Result<Self> {
-        let contents = std::fs::read_to_string(path)?;
+        let contents = Zeroizing::new(std::fs::read_to_string(path)?);
         Self::from_hex(contents.trim())
     }
 

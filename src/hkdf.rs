@@ -9,9 +9,17 @@ use zeroize::Zeroizing;
 
 use crate::{Error, MasterKey, Result};
 
+/// Maximum output length for `derive_key` (255 × SHA3-256 block size).
+const MAX_DERIVE_KEY_LEN: usize = 8160;
+
 /// Derive `length` bytes of key material from `master` using `info` for domain
 /// separation. The `info` string MUST be unique for each key context.
+///
+/// Returns `Err(KeyDerivation)` if `length` exceeds 8160 bytes.
 pub fn derive_key(master: &MasterKey, info: &[u8], length: usize) -> Result<Zeroizing<Vec<u8>>> {
+    if length > MAX_DERIVE_KEY_LEN {
+        return Err(Error::KeyDerivation);
+    }
     let hk = Hkdf::<Sha3_256>::new(None, master.expose());
     let mut okm = Zeroizing::new(vec![0u8; length]);
     hk.expand(info, &mut okm)
@@ -47,12 +55,14 @@ pub fn derive_user_key(
 
 /// Low-level HKDF expand used internally (e.g. by the hybrid KEM).
 /// `ikm` is zeroized after use by the caller.
-pub(crate) fn hkdf_expand_32(ikm: &[u8], info: &[u8]) -> Zeroizing<[u8; 32]> {
+pub(crate) fn hkdf_expand_32(ikm: &[u8], info: &[u8]) -> Result<Zeroizing<[u8; 32]>> {
     let hk = Hkdf::<Sha3_256>::new(None, ikm);
     let mut okm = Zeroizing::new([0u8; 32]);
-    // Cannot fail: 32 bytes < 255 * HashLen
-    hk.expand(info, &mut *okm).expect("HKDF expand failed");
-    okm
+    // 32 bytes < 255 × HashLen — this path is unreachable, but we propagate
+    // the error to avoid using expect() on crypto paths.
+    hk.expand(info, &mut *okm)
+        .map_err(|_| Error::KeyDerivation)?;
+    Ok(okm)
 }
 
 #[cfg(test)]
