@@ -6,7 +6,8 @@ use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {
     // Fixed master key (we fuzz the user_id and purpose inputs, not the key).
-    let master = MasterKey::from_hex(&"00".repeat(32)).expect("valid fixed key");
+    // Avoid expect/unwrap in fuzz targets — any panic would hide the real finding.
+    let Ok(master) = MasterKey::from_hex(&"00".repeat(32)) else { return };
 
     // Split input into two segments: user_id and purpose.
     let mid = data.len() / 2;

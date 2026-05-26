@@ -29,8 +29,9 @@ pub fn derive_key(master: &MasterKey, info: &[u8], length: usize) -> Result<Zero
 
 /// Derive a 32-byte user-specific key for a given `purpose`.
 ///
-/// The `info` is constructed as `"brigid-user-key-v1" || user_id || ":" || purpose`
-/// after length-prefixing to prevent collisions.
+/// The `info` is constructed as:
+/// `"brigid-user-key-v1" || u32_be(len(user_id)) || user_id || u32_be(len(purpose)) || purpose`
+/// (length-prefixed fields prevent collisions — no separator character is used).
 pub fn derive_user_key(
     master: &MasterKey,
     user_id: &[u8],

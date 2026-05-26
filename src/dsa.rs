@@ -17,6 +17,11 @@ use zeroize::Zeroizing;
 
 use crate::{Error, Result};
 
+/// Byte length of an ML-DSA-65 signature (fixed by the standard).
+const MLDSA65_SIG_LEN: usize = 3309;
+/// Byte length of an ML-DSA-65 verifying key (fixed by the standard).
+const MLDSA65_VK_LEN: usize = 1952;
+
 /// Hybrid signing (secret) key. Secret material is zeroed on drop.
 pub struct HybridDsaSigningKey {
     /// ML-DSA-65 seed (32 bytes, the preferred compact representation).
@@ -55,6 +60,9 @@ impl HybridSignature {
         }
         let ml_len_bytes: [u8; 4] = bytes[..4].try_into().map_err(|_| Error::Verify)?;
         let ml_len = u32::from_be_bytes(ml_len_bytes) as usize;
+        if ml_len > MLDSA65_SIG_LEN {
+            return Err(Error::Verify);
+        }
         if bytes.len() != 4 + ml_len + 64 {
             return Err(Error::Verify);
         }
@@ -86,6 +94,9 @@ impl HybridDsaVerifyingKey {
         }
         let ml_len_bytes: [u8; 4] = bytes[..4].try_into().map_err(|_| Error::InvalidKey)?;
         let ml_len = u32::from_be_bytes(ml_len_bytes) as usize;
+        if ml_len > MLDSA65_VK_LEN {
+            return Err(Error::InvalidKey);
+        }
         if bytes.len() != 4 + ml_len + 32 {
             return Err(Error::InvalidKey);
         }
