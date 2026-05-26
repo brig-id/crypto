@@ -169,7 +169,7 @@ pub fn hybrid_encapsulate(
     let mut ikm = Zeroizing::new([0u8; 64]);
     ikm[..32].copy_from_slice(mlkem_ss.as_ref());
     ikm[32..].copy_from_slice(x25519_ss.as_bytes());
-    let shared_secret = hkdf_expand_32(&*ikm, b"brigid-hybrid-kem-v1");
+    let shared_secret = hkdf_expand_32(&*ikm, b"brigid-hybrid-kem-v1")?;
 
     Ok((
         HybridCiphertext {
@@ -195,8 +195,8 @@ pub fn hybrid_decapsulate(
     let mlkem_ss = dk.decapsulate(&mlkem_ct);
 
     // X25519 static DH
-    let sk_bytes: [u8; X25519_KEY_SIZE] = *sk.x25519_sk;
-    let x25519_sk = X25519StaticSecret::from(sk_bytes);
+    let sk_bytes = Zeroizing::new(*sk.x25519_sk);
+    let x25519_sk = X25519StaticSecret::from(*sk_bytes);
     let eph_pk = X25519PublicKey::from(ct.x25519_eph_pk);
     let x25519_ss = x25519_sk.diffie_hellman(&eph_pk);
 
@@ -204,7 +204,7 @@ pub fn hybrid_decapsulate(
     let mut ikm = Zeroizing::new([0u8; 64]);
     ikm[..32].copy_from_slice(mlkem_ss.as_ref());
     ikm[32..].copy_from_slice(x25519_ss.as_bytes());
-    let shared_secret = hkdf_expand_32(&*ikm, b"brigid-hybrid-kem-v1");
+    let shared_secret = hkdf_expand_32(&*ikm, b"brigid-hybrid-kem-v1")?;
 
     Ok(shared_secret)
 }
