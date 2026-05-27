@@ -26,9 +26,11 @@ impl MasterKey {
             Err(std::env::VarError::NotUnicode(_)) => {
                 // Surface the precise failure without echoing the offending
                 // bytes (they may carry user data and must never appear in
-                // logs).
+                // logs). The variable name is also omitted from the message
+                // per AGENTS.md (`BRIGID_MASTER_KEY` must never appear in
+                // logs, panics, or error messages).
                 return Err(Error::InvalidMasterKey(
-                    "BRIGID_MASTER_KEY contains non-UTF-8 bytes",
+                    "master key environment variable contains non-UTF-8 bytes",
                 ));
             }
         };
