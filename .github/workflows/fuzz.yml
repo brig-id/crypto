@@ -28,7 +28,12 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
 
       - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz --version 0.13.1 --locked
+        # NOTE: `--locked` is intentionally omitted. cargo-fuzz 0.13.1's
+        # Cargo.lock pins an older `rustix` revision that no longer compiles
+        # on current nightly (uses removed internal `rustc_*` attributes).
+        # The crate's own published binary is reproducible enough for this
+        # CI pipeline; we accept fresh dep resolution on install.
+        run: cargo install cargo-fuzz --version 0.13.1
 
       - name: Restore corpus cache
         uses: actions/cache/restore@v4
