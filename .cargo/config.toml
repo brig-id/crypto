@@ -1,2 +1,11 @@
+# Use the mold linker for faster incremental builds.
+#
+# `mold` is required to build this crate locally and in CI. The devcontainer
+# (`/workspaces/.dev/.devcontainer/`) installs it by default; the reusable
+# GitHub workflows (`brig-id/.github/.github/workflows/{ci-rust,coverage,sbom,fuzz}.yml`)
+# install it via `apt-get install -y mold` before `cargo`.
+#
+# Contributors building outside that environment must install `mold` first
+# (e.g. `apt install mold`) or remove this file locally.
 [target.x86_64-unknown-linux-gnu]
 rustflags = ["-C", "link-arg=-fuse-ld=mold"]
