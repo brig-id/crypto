@@ -74,7 +74,7 @@ pub fn decrypt(key: &[u8; 32], blob: &EncryptedBlob) -> Result<Zeroizing<Vec<u8>
 /// || u32_be(2) || "v1"`.
 pub fn encrypt_with_master(master: &MasterKey, plaintext: &[u8]) -> Result<EncryptedBlob> {
     let subkey = crate::hkdf::derive_user_key(master, b"aes-data-encryption", b"v1")?;
-    encrypt(&*subkey, plaintext)
+    encrypt(&subkey, plaintext)
 }
 
 /// Decrypt using a key derived from the master key.
@@ -83,7 +83,7 @@ pub fn encrypt_with_master(master: &MasterKey, plaintext: &[u8]) -> Result<Encry
 /// consistent.
 pub fn decrypt_with_master(master: &MasterKey, blob: &EncryptedBlob) -> Result<Zeroizing<Vec<u8>>> {
     let subkey = crate::hkdf::derive_user_key(master, b"aes-data-encryption", b"v1")?;
-    decrypt(&*subkey, blob)
+    decrypt(&subkey, blob)
 }
 
 #[cfg(test)]

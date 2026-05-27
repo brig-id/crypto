@@ -53,17 +53,15 @@ impl HybridSignature {
         out
     }
 
-    /// Deserialise from bytes.
+    /// Deserialise from bytes. Enforces the exact ML-DSA-65 signature length
+    /// (3309 bytes) — any other length is rejected.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() < 4 + 64 {
+        if bytes.len() != 4 + MLDSA65_SIG_LEN + 64 {
             return Err(Error::Verify);
         }
         let ml_len_bytes: [u8; 4] = bytes[..4].try_into().map_err(|_| Error::Verify)?;
         let ml_len = u32::from_be_bytes(ml_len_bytes) as usize;
-        if ml_len > MLDSA65_SIG_LEN {
-            return Err(Error::Verify);
-        }
-        if bytes.len() != 4 + ml_len + 64 {
+        if ml_len != MLDSA65_SIG_LEN {
             return Err(Error::Verify);
         }
         let mldsa_sig = bytes[4..4 + ml_len].to_vec();
@@ -87,17 +85,15 @@ impl HybridDsaVerifyingKey {
         out
     }
 
-    /// Deserialise from bytes.
+    /// Deserialise from bytes. Enforces the exact ML-DSA-65 verifying key length
+    /// (1952 bytes) — any other length is rejected.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() < 4 + 32 {
+        if bytes.len() != 4 + MLDSA65_VK_LEN + 32 {
             return Err(Error::InvalidKey);
         }
         let ml_len_bytes: [u8; 4] = bytes[..4].try_into().map_err(|_| Error::InvalidKey)?;
         let ml_len = u32::from_be_bytes(ml_len_bytes) as usize;
-        if ml_len > MLDSA65_VK_LEN {
-            return Err(Error::InvalidKey);
-        }
-        if bytes.len() != 4 + ml_len + 32 {
+        if ml_len != MLDSA65_VK_LEN {
             return Err(Error::InvalidKey);
         }
         let mldsa_vk_bytes = bytes[4..4 + ml_len].to_vec();
