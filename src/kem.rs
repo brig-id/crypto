@@ -199,9 +199,10 @@ pub fn hybrid_decapsulate(
         .map_err(|_| Error::Decapsulate)?;
     let mlkem_ss = dk.decapsulate(&mlkem_ct);
 
-    // X25519 static DH
-    let sk_bytes = Zeroizing::new(*sk.x25519_sk);
-    let x25519_sk = X25519StaticSecret::from(*sk_bytes);
+    // X25519 static DH — `StaticSecret::from([u8; 32])` consumes its input,
+    // so we move the key bytes in directly without an extra `Zeroizing<>` copy.
+    // `StaticSecret` itself zeroizes on drop.
+    let x25519_sk = X25519StaticSecret::from(*sk.x25519_sk);
     let eph_pk = X25519PublicKey::from(ct.x25519_eph_pk);
     let x25519_ss = x25519_sk.diffie_hellman(&eph_pk);
     // Reject low-order ephemeral public keys (would yield an all-zero shared
