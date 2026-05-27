@@ -164,6 +164,11 @@ pub fn hybrid_encapsulate(
     let eph_pk = X25519PublicKey::from(&eph_sk);
     let recipient_pk = X25519PublicKey::from(pk.x25519_pk);
     let x25519_ss = eph_sk.diffie_hellman(&recipient_pk);
+    // Reject low-order recipient public keys (would yield an all-zero shared secret
+    // and contribute nothing to the hybrid secret).
+    if !x25519_ss.was_contributory() {
+        return Err(Error::Encapsulate);
+    }
 
     // Combine via HKDF-SHA3-256
     let mut ikm = Zeroizing::new([0u8; 64]);
@@ -199,6 +204,11 @@ pub fn hybrid_decapsulate(
     let x25519_sk = X25519StaticSecret::from(*sk_bytes);
     let eph_pk = X25519PublicKey::from(ct.x25519_eph_pk);
     let x25519_ss = x25519_sk.diffie_hellman(&eph_pk);
+    // Reject low-order ephemeral public keys (would yield an all-zero shared
+    // secret, defeating the hybrid construction).
+    if !x25519_ss.was_contributory() {
+        return Err(Error::Decapsulate);
+    }
 
     // Combine via HKDF-SHA3-256
     let mut ikm = Zeroizing::new([0u8; 64]);
