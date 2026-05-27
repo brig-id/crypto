@@ -65,14 +65,23 @@ pub fn decrypt(key: &[u8; 32], blob: &EncryptedBlob) -> Result<Zeroizing<Vec<u8>
     Ok(Zeroizing::new(plaintext))
 }
 
-/// Encrypt using the master key directly.
+/// Encrypt using a key derived from the master key.
+///
+/// Uses HKDF-SHA3-256 with `info = "brigid-aes-data-encryption-v1"` to derive a
+/// 32-byte AES-256-GCM subkey, avoiding direct reuse of the master key across
+/// different cryptographic contexts.
 pub fn encrypt_with_master(master: &MasterKey, plaintext: &[u8]) -> Result<EncryptedBlob> {
-    encrypt(master.expose(), plaintext)
+    let subkey = crate::hkdf::derive_user_key(master, b"aes-data-encryption", b"v1")?;
+    encrypt(&*subkey, plaintext)
 }
 
-/// Decrypt using the master key directly.
+/// Decrypt using a key derived from the master key.
+///
+/// Derives the same subkey as [`encrypt_with_master`] so round-trips are
+/// consistent.
 pub fn decrypt_with_master(master: &MasterKey, blob: &EncryptedBlob) -> Result<Zeroizing<Vec<u8>>> {
-    decrypt(master.expose(), blob)
+    let subkey = crate::hkdf::derive_user_key(master, b"aes-data-encryption", b"v1")?;
+    decrypt(&*subkey, blob)
 }
 
 #[cfg(test)]

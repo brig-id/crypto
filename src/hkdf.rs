@@ -9,7 +9,7 @@ use zeroize::Zeroizing;
 
 use crate::{Error, MasterKey, Result};
 
-/// Maximum output length for `derive_key` (255 × SHA3-256 block size).
+/// Maximum output length for `derive_key` (255 × SHA3-256 hash length = 255 × 32 bytes).
 const MAX_DERIVE_KEY_LEN: usize = 8160;
 
 /// Derive `length` bytes of key material from `master` using `info` for domain

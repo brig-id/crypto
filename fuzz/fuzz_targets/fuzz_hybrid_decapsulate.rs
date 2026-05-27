@@ -8,7 +8,9 @@ fuzz_target!(|data: &[u8]| {
     if data.len() < HYBRID_CT_SIZE {
         return;
     }
-    let Ok(ct_bytes) = data[..HYBRID_CT_SIZE].try_into() else { return };
+    let Ok(ct_bytes) = data[..HYBRID_CT_SIZE].try_into() else {
+        return;
+    };
     let ct_bytes: &[u8; HYBRID_CT_SIZE] = ct_bytes;
     let ct = HybridCiphertext::from_bytes(ct_bytes);
     let (_pk, sk) = kem::hybrid_kem_keygen();
