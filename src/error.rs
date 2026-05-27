@@ -27,7 +27,7 @@ pub enum Error {
     #[error("invalid key material")]
     InvalidKey,
 
-    #[error("hex decode error: {0}")]
+    #[error("hex decode failed")]
     HexDecode(#[from] hex::FromHexError),
 
     #[error("I/O error: {0}")]
