@@ -25,7 +25,7 @@ const MLDSA65_VK_LEN: usize = 1952;
 /// Hybrid signing (secret) key. Secret material is zeroed on drop.
 pub struct HybridDsaSigningKey {
     /// ML-DSA-65 seed (32 bytes, the preferred compact representation).
-    mldsa_seed: Zeroizing<Vec<u8>>,
+    mldsa_seed: Zeroizing<[u8; 32]>,
     /// Ed25519 signing key seed (32 bytes).
     ed25519_seed: Zeroizing<[u8; 32]>,
 }
@@ -114,13 +114,19 @@ pub fn hybrid_keygen() -> (HybridDsaSigningKey, HybridDsaVerifyingKey) {
     let mldsa_seed_exported = mldsa_sk.to_bytes(); // KeyExport::to_bytes() → Seed = [u8; 32]
     let mldsa_vk_exported = mldsa_vk.to_bytes(); // KeyExport::to_bytes() → Key<VK>
 
+    // Copy the exported 32-byte seed into a fixed-size, drop-zeroizing buffer.
+    let mut mldsa_seed = Zeroizing::new([0u8; 32]);
+    let seed_bytes = AsRef::<[u8]>::as_ref(&mldsa_seed_exported);
+    debug_assert_eq!(seed_bytes.len(), 32, "ML-DSA-65 seed must be 32 bytes");
+    mldsa_seed.copy_from_slice(seed_bytes);
+
     // Ed25519
     let ed25519_sk = Ed25519SigningKey::generate(&mut rand_core::OsRng);
     let ed25519_vk = ed25519_sk.verifying_key();
 
     (
         HybridDsaSigningKey {
-            mldsa_seed: Zeroizing::new(AsRef::<[u8]>::as_ref(&mldsa_seed_exported).to_vec()),
+            mldsa_seed,
             ed25519_seed: Zeroizing::new(ed25519_sk.to_bytes()),
         },
         HybridDsaVerifyingKey {
@@ -133,7 +139,7 @@ pub fn hybrid_keygen() -> (HybridDsaSigningKey, HybridDsaVerifyingKey) {
 /// Sign `message` with the hybrid signing key.
 pub fn hybrid_sign(sk: &HybridDsaSigningKey, message: &[u8]) -> Result<HybridSignature> {
     // Reconstruct ML-DSA-65 signing key from stored 32-byte seed (KeyInit::new_from_slice)
-    let mldsa_sk = MlDsaSigningKey::<MlDsa65>::new_from_slice(sk.mldsa_seed.as_slice())
+    let mldsa_sk = MlDsaSigningKey::<MlDsa65>::new_from_slice(&*sk.mldsa_seed)
         .map_err(|_| Error::InvalidKey)?;
 
     // Reconstruct Ed25519 signing key from seed bytes
