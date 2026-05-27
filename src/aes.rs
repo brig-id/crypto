@@ -16,11 +16,22 @@ use crate::{Error, MasterKey, Result};
 /// Suitable for serialisation to storage.
 #[derive(Debug, Clone)]
 pub struct EncryptedBlob {
-    pub nonce: [u8; 12],
-    pub ciphertext: Vec<u8>,
+    nonce: [u8; 12],
+    ciphertext: Vec<u8>,
 }
 
 impl EncryptedBlob {
+    /// The 96-bit AES-GCM nonce. Never reused across encryptions with the
+    /// same key (generated via `OsRng` by [`encrypt`]).
+    pub fn nonce(&self) -> &[u8; 12] {
+        &self.nonce
+    }
+
+    /// The authenticated ciphertext (includes the 16-byte GCM tag).
+    pub fn ciphertext(&self) -> &[u8] {
+        &self.ciphertext
+    }
+
     /// Serialise to `nonce || ciphertext`.
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(12 + self.ciphertext.len());

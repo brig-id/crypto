@@ -16,10 +16,23 @@ pub struct MasterKey(Secret<[u8; 32]>);
 impl MasterKey {
     /// Load from `BRIGID_MASTER_KEY` environment variable (64 hex chars).
     pub fn from_env() -> Result<Self> {
-        let hex_str = Zeroizing::new(
-            std::env::var("BRIGID_MASTER_KEY")
-                .map_err(|_| Error::InvalidMasterKey("master key environment variable not set"))?,
-        );
+        let raw = match std::env::var("BRIGID_MASTER_KEY") {
+            Ok(v) => v,
+            Err(std::env::VarError::NotPresent) => {
+                return Err(Error::InvalidMasterKey(
+                    "master key environment variable not set",
+                ));
+            }
+            Err(std::env::VarError::NotUnicode(_)) => {
+                // Surface the precise failure without echoing the offending
+                // bytes (they may carry user data and must never appear in
+                // logs).
+                return Err(Error::InvalidMasterKey(
+                    "BRIGID_MASTER_KEY contains non-UTF-8 bytes",
+                ));
+            }
+        };
+        let hex_str = Zeroizing::new(raw);
         Self::from_hex(&hex_str)
     }
 

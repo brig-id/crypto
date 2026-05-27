@@ -35,10 +35,14 @@ pub struct HybridKemPublicKey {
 }
 
 /// Hybrid decapsulation (secret) key: ML-KEM-768 seed + X25519 static secret.
-/// Zeroed on drop via `Zeroizing`.
+/// Zeroed on drop via `Zeroizing` (ML-KEM seed) and `X25519StaticSecret`'s
+/// built-in `Drop`/`Zeroize` implementation.
 pub struct HybridKemSecretKey {
     mlkem_seed: Zeroizing<[u8; MLKEM_SEED_SIZE]>,
-    x25519_sk: Zeroizing<[u8; X25519_KEY_SIZE]>,
+    /// Stored as `X25519StaticSecret` directly so the bytes are never
+    /// copied out onto the stack on use (decapsulation borrows `&self`).
+    /// `StaticSecret` zeroizes its inner `[u8; 32]` on drop.
+    x25519_sk: X25519StaticSecret,
 }
 
 /// Hybrid ciphertext: ML-KEM ciphertext + X25519 ephemeral public key.
@@ -74,16 +78,21 @@ impl HybridKemSecretKey {
     pub fn to_bytes(&self) -> Zeroizing<[u8; HYBRID_SK_SIZE]> {
         let mut out = Zeroizing::new([0u8; HYBRID_SK_SIZE]);
         out[..MLKEM_SEED_SIZE].copy_from_slice(&*self.mlkem_seed);
-        out[MLKEM_SEED_SIZE..].copy_from_slice(&*self.x25519_sk);
+        // `to_bytes()` returns a fresh `[u8; 32]`; wrap our serialisation in
+        // `Zeroizing` so the caller is responsible for handling the copy.
+        out[MLKEM_SEED_SIZE..].copy_from_slice(&self.x25519_sk.to_bytes());
         out
     }
 
     /// Deserialise from a secret key seed (zeroized).
     pub fn from_bytes(bytes: &Zeroizing<[u8; HYBRID_SK_SIZE]>) -> Self {
         let mut mlkem_seed = Zeroizing::new([0u8; MLKEM_SEED_SIZE]);
-        let mut x25519_sk = Zeroizing::new([0u8; X25519_KEY_SIZE]);
         mlkem_seed.copy_from_slice(&bytes[..MLKEM_SEED_SIZE]);
-        x25519_sk.copy_from_slice(&bytes[MLKEM_SEED_SIZE..]);
+        // Copy the X25519 portion into a `Zeroizing` buffer so the temporary
+        // bytes are wiped after the `X25519StaticSecret::from` move.
+        let mut x25519_bytes = Zeroizing::new([0u8; X25519_KEY_SIZE]);
+        x25519_bytes.copy_from_slice(&bytes[MLKEM_SEED_SIZE..]);
+        let x25519_sk = X25519StaticSecret::from(*x25519_bytes);
         Self {
             mlkem_seed,
             x25519_sk,
@@ -126,12 +135,10 @@ pub fn hybrid_kem_keygen() -> (HybridKemPublicKey, HybridKemSecretKey) {
     let mut mlkem_seed = Zeroizing::new([0u8; MLKEM_SEED_SIZE]);
     mlkem_seed.copy_from_slice(dk_seed.as_ref());
 
-    // X25519
-    let x25519_sk_raw = X25519StaticSecret::random_from_rng(rand_core::OsRng);
-    let x25519_pk_raw = X25519PublicKey::from(&x25519_sk_raw);
-
-    let mut x25519_sk = Zeroizing::new([0u8; X25519_KEY_SIZE]);
-    x25519_sk.copy_from_slice(x25519_sk_raw.as_bytes());
+    // X25519 — generate the static secret directly; no intermediate byte
+    // buffer is created (would otherwise sit unzeroized on the stack).
+    let x25519_sk = X25519StaticSecret::random_from_rng(rand_core::OsRng);
+    let x25519_pk_raw = X25519PublicKey::from(&x25519_sk);
 
     (
         HybridKemPublicKey {
@@ -199,12 +206,10 @@ pub fn hybrid_decapsulate(
         .map_err(|_| Error::Decapsulate)?;
     let mlkem_ss = dk.decapsulate(&mlkem_ct);
 
-    // X25519 static DH — `StaticSecret::from([u8; 32])` consumes its input,
-    // so we move the key bytes in directly without an extra `Zeroizing<>` copy.
-    // `StaticSecret` itself zeroizes on drop.
-    let x25519_sk = X25519StaticSecret::from(*sk.x25519_sk);
+    // X25519 static DH — borrow the stored `StaticSecret` directly; no copy
+    // of the secret bytes ever materialises on the stack.
     let eph_pk = X25519PublicKey::from(ct.x25519_eph_pk);
-    let x25519_ss = x25519_sk.diffie_hellman(&eph_pk);
+    let x25519_ss = sk.x25519_sk.diffie_hellman(&eph_pk);
     // Reject low-order ephemeral public keys (would yield an all-zero shared
     // secret, defeating the hybrid construction).
     if !x25519_ss.was_contributory() {
