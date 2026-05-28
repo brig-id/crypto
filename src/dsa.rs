@@ -117,7 +117,12 @@ pub fn hybrid_keygen() -> (HybridDsaSigningKey, HybridDsaVerifyingKey) {
     // Copy the exported 32-byte seed into a fixed-size, drop-zeroizing buffer.
     let mut mldsa_seed = Zeroizing::new([0u8; 32]);
     let seed_bytes = AsRef::<[u8]>::as_ref(&mldsa_seed_exported);
-    debug_assert_eq!(seed_bytes.len(), 32, "ML-DSA-65 seed must be 32 bytes");
+    // The seed length is guaranteed by the `MlDsa65` type (`KeyExport::to_bytes`
+    // returns a fixed-size 32-byte seed). A `debug_assert_eq!` here would still
+    // be a panic path — undesirable in a crypto crate that also runs with
+    // `panic = "abort"` in release. `copy_from_slice` below is the authoritative
+    // length check: if the upstream contract ever changed, it would panic in
+    // both debug and release with the same abort behaviour we cannot prevent.
     mldsa_seed.copy_from_slice(seed_bytes);
 
     // Ed25519
