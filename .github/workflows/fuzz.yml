@@ -24,6 +24,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install mold linker
+        # The repo's `.cargo/config.toml` forces `-fuse-ld=mold` on
+        # `x86_64-unknown-linux-gnu`, so every build (including fuzzers)
+        # needs `mold` on PATH. The reusable CI workflows install it the
+        # same way; we must mirror it here or `cargo fuzz` fails at link
+        # time on `ubuntu-latest`.
+        run: sudo apt-get update && sudo apt-get install -y mold
+
       - name: Install Rust nightly
         uses: dtolnay/rust-toolchain@nightly
 

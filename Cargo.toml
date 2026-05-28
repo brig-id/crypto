@@ -34,10 +34,16 @@ thiserror = "2"
 rand = "0.8"
 
 [profile.release]
+# `panic = "abort"` prevents stack unwinding in release builds, which would
+# otherwise risk leaking key material from `Drop` impls running during a
+# panic. Combined with `Zeroize` on drop, abort guarantees no half-zeroized
+# secrets survive a panic in production.
 panic = "abort"
 lto = "thin"
 codegen-units = 1
 strip = "debuginfo"
 
-[profile.dev]
-panic = "abort"
+# Dev/test profiles intentionally keep `panic = "unwind"` (the default) so
+# that `cargo test` can report individual test failures and developers can
+# capture backtraces. The secret-leak hardening above only applies to
+# release builds, which is the only profile that ships to production.
