@@ -78,9 +78,12 @@ impl HybridKemSecretKey {
     pub fn to_bytes(&self) -> Zeroizing<[u8; HYBRID_SK_SIZE]> {
         let mut out = Zeroizing::new([0u8; HYBRID_SK_SIZE]);
         out[..MLKEM_SEED_SIZE].copy_from_slice(&*self.mlkem_seed);
-        // `to_bytes()` returns a fresh `[u8; 32]`; wrap our serialisation in
-        // `Zeroizing` so the caller is responsible for handling the copy.
-        out[MLKEM_SEED_SIZE..].copy_from_slice(&self.x25519_sk.to_bytes());
+        // `to_bytes()` returns a fresh `[u8; 32]` containing the raw X25519
+        // scalar; wrap it in `Zeroizing` so the temporary is wiped as soon as
+        // this scope ends instead of lingering on the stack/in registers.
+        let x25519_bytes: Zeroizing<[u8; X25519_KEY_SIZE]> =
+            Zeroizing::new(self.x25519_sk.to_bytes());
+        out[MLKEM_SEED_SIZE..].copy_from_slice(&*x25519_bytes);
         out
     }
 
@@ -88,11 +91,14 @@ impl HybridKemSecretKey {
     pub fn from_bytes(bytes: &Zeroizing<[u8; HYBRID_SK_SIZE]>) -> Self {
         let mut mlkem_seed = Zeroizing::new([0u8; MLKEM_SEED_SIZE]);
         mlkem_seed.copy_from_slice(&bytes[..MLKEM_SEED_SIZE]);
-        // Copy the X25519 portion into a `Zeroizing` buffer so the temporary
-        // bytes are wiped after the `X25519StaticSecret::from` move.
+        // Copy the X25519 portion into a `Zeroizing` buffer, then `mem::take`
+        // it into `X25519StaticSecret::from`. Taking (vs dereferencing) wipes
+        // the buffer's content in the same step it hands ownership to
+        // `StaticSecret`, so no extra plaintext copy of the scalar exists
+        // even transiently.
         let mut x25519_bytes = Zeroizing::new([0u8; X25519_KEY_SIZE]);
         x25519_bytes.copy_from_slice(&bytes[MLKEM_SEED_SIZE..]);
-        let x25519_sk = X25519StaticSecret::from(*x25519_bytes);
+        let x25519_sk = X25519StaticSecret::from(std::mem::take(&mut *x25519_bytes));
         Self {
             mlkem_seed,
             x25519_sk,

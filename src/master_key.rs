@@ -48,7 +48,13 @@ impl MasterKey {
         }
         let mut bytes = Zeroizing::new([0u8; 32]);
         hex::decode_to_slice(hex_str, &mut *bytes)?;
-        Ok(Self(Secret::new(*bytes)))
+        // `std::mem::take` moves the array out of the `Zeroizing` buffer and
+        // replaces it with `[0; 32]` in a single step, so only one plaintext
+        // copy of the key exists at any moment. `Secret::new(*bytes)` would
+        // instead copy the array out via `Copy` and leave the original
+        // plaintext alive in `bytes` until the function returned, briefly
+        // doubling the in-memory footprint of the master key.
+        Ok(Self(Secret::new(std::mem::take(&mut *bytes))))
     }
 
     /// Load from a file containing a hex-encoded key (64 hex chars).
