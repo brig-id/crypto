@@ -28,7 +28,7 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
 
       - name: Install cargo-binstall
-        # Pinned action commit (v1.10.19) — fetches a checksummed cargo-binstall
+        # Pinned action commit (v1.19.1) — fetches a checksummed cargo-binstall
         # binary from its signed GitHub release.
         uses: cargo-bins/cargo-binstall@aaa84a43aec4955a42c5ffc65d258961e39f276e # v1.19.1
 
@@ -60,6 +60,14 @@ jobs:
             --target x86_64-unknown-linux-gnu \
             -- -max_total_time=300 -max_len=65536
 
+      - name: Ensure corpus directory exists
+        # actions/cache/save fails the step if the path does not exist. The
+        # fuzzer creates the directory the first time it persists an input,
+        # but a build/tooling failure earlier in `cargo fuzz run` would leave
+        # the path missing and mask the real error behind a cache-save error.
+        if: always()
+        run: mkdir -p fuzz/corpus/${{ matrix.target }}
+
       - name: Save corpus cache
         if: always()
         uses: actions/cache/save@v4
@@ -72,5 +80,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: crash-${{ matrix.target }}-${{ github.sha }}
+          # `if-no-files-found: ignore` avoids masking a build/tooling failure
+          # with an artifact-upload error: when the fuzzer never reached the
+          # crash-writing stage, the artifacts directory simply does not exist.
+          if-no-files-found: ignore
           path: |
             fuzz/artifacts/${{ matrix.target }}/
