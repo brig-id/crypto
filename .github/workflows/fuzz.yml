@@ -49,8 +49,15 @@ jobs:
             fuzz-corpus-${{ matrix.target }}-
 
       - name: Run fuzzer (300 s)
+        # `--target x86_64-unknown-linux-gnu` is required: cargo-binstall fetches
+        # the statically-linked musl release of cargo-fuzz, which embeds its own
+        # compile-time target tuple (`x86_64-unknown-linux-musl`) as the default
+        # fuzz build target. Building fuzzers for musl is incompatible with the
+        # address sanitizer (`sanitizer is incompatible with statically linked
+        # libc`), so we pin the build to the runner's native glibc triple.
         run: |
           cargo +nightly fuzz run ${{ matrix.target }} \
+            --target x86_64-unknown-linux-gnu \
             -- -max_total_time=300 -max_len=65536
 
       - name: Save corpus cache
