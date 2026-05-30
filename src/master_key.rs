@@ -82,7 +82,8 @@ impl MasterKey {
 /// byte-level mutate API on these platforms, so the original buffer is
 /// dropped without an explicit wipe on the non-UTF-8 error path. The
 /// success path is still wrapped in `Zeroizing<String>` so the parsed hex
-/// is zeroed once consumed by `from_hex`.#[cfg(unix)]
+/// is zeroed once consumed by `from_hex`.
+#[cfg(unix)]
 fn os_string_into_zeroizing_string(
     os: std::ffi::OsString,
 ) -> std::result::Result<Zeroizing<String>, ()> {
