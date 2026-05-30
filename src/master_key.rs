@@ -71,16 +71,18 @@ impl MasterKey {
     }
 }
 
-/// Convert an owned `OsString` into a `Zeroizing<String>` while guaranteeing
-/// the original bytes are wiped on both the success and the non-UTF-8 error
-/// path.
+/// Convert an owned `OsString` into a `Zeroizing<String>`.
 ///
-/// On unix the underlying byte buffer is taken via `OsStringExt::into_vec`
-/// and wrapped in `Zeroizing` so it is zeroed on drop regardless of which
-/// arm matches. On non-unix platforms `OsString` does not expose a safe
-/// byte-level interface; we fall back to `OsString::into_string` (best
-/// effort), with the same external contract.
-#[cfg(unix)]
+/// **Unix:** guarantees the underlying byte buffer is wiped on both the
+/// success and the non-UTF-8 error path. The bytes are taken via
+/// `OsStringExt::into_vec` and wrapped in `Zeroizing`, so the original
+/// allocation is zeroed on drop regardless of which arm matches.
+///
+/// **Non-unix (Windows / WASI):** best-effort only. `OsString` has no safe
+/// byte-level mutate API on these platforms, so the original buffer is
+/// dropped without an explicit wipe on the non-UTF-8 error path. The
+/// success path is still wrapped in `Zeroizing<String>` so the parsed hex
+/// is zeroed once consumed by `from_hex`.#[cfg(unix)]
 fn os_string_into_zeroizing_string(
     os: std::ffi::OsString,
 ) -> std::result::Result<Zeroizing<String>, ()> {

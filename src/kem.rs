@@ -183,7 +183,7 @@ pub fn hybrid_encapsulate(
     pk: &HybridKemPublicKey,
 ) -> Result<(HybridCiphertext, Zeroizing<[u8; 32]>)> {
     // Reconstruct ML-KEM-768 encapsulation key
-    let ek: EncapsulationKey768 = EncapsulationKey768::new_from_slice(pk.mlkem_ek_bytes.as_slice())
+    let ek: EncapsulationKey768 = EncapsulationKey768::new_from_slice(&pk.mlkem_ek_bytes[..])
         .map_err(|_| Error::Encapsulate)?;
 
     // ML-KEM encapsulate (infallible; implicit rejection handles invalid inputs)
@@ -224,12 +224,12 @@ pub fn hybrid_decapsulate(
     ct: &HybridCiphertext,
 ) -> Result<Zeroizing<[u8; 32]>> {
     // Reconstruct ML-KEM-768 decapsulation key from stored seed
-    let seed = ml_kem::Seed::try_from(sk.mlkem_seed.expose_secret().as_slice())
+    let seed = ml_kem::Seed::try_from(&sk.mlkem_seed.expose_secret()[..])
         .map_err(|_| Error::Decapsulate)?;
     let dk: DecapsulationKey768 = DecapsulationKey768::from_seed(seed);
 
     // ML-KEM decapsulate (infallible; implicit rejection)
-    let mlkem_ct = ml_kem::Ciphertext::<MlKem768>::try_from(ct.mlkem_ct_bytes.as_slice())
+    let mlkem_ct = ml_kem::Ciphertext::<MlKem768>::try_from(&ct.mlkem_ct_bytes[..])
         .map_err(|_| Error::Decapsulate)?;
     let mlkem_ss = dk.decapsulate(&mlkem_ct);
 
