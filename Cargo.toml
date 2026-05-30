@@ -10,7 +10,7 @@ rust-version = "1.85"
 # Symmetric encryption
 aes-gcm = { version = "0.10", features = ["aes"] }
 # Key derivation
-hkdf = "0.12"
+hkdf = "0.13"
 sha3 = "0.10"
 # Classical signatures
 ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
