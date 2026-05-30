@@ -291,7 +291,9 @@ mod tests {
         let pk2 = HybridKemPublicKey::from_bytes(&pk.to_bytes());
         let sk2 = HybridKemSecretKey::from_bytes(&sk.to_bytes());
         let (ct, ss_enc) = hybrid_encapsulate(&pk2).unwrap();
-        let ss_dec = hybrid_decapsulate(&sk2, &ct).unwrap();
+        // Round-trip the ciphertext through its byte encoding as well.
+        let ct2 = HybridCiphertext::from_bytes(&ct.to_bytes());
+        let ss_dec = hybrid_decapsulate(&sk2, &ct2).unwrap();
         assert_eq!(*ss_enc, *ss_dec);
     }
 }
