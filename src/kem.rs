@@ -14,6 +14,7 @@ use ml_kem::{
     DecapsulationKey768, EncapsulationKey768, KeyExport, MlKem768,
     kem::{Decapsulate, Encapsulate, Kem, TryKeyInit},
 };
+use secrecy::{ExposeSecret, Secret};
 use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret as X25519StaticSecret};
 use zeroize::Zeroizing;
 
@@ -35,10 +36,16 @@ pub struct HybridKemPublicKey {
 }
 
 /// Hybrid decapsulation (secret) key: ML-KEM-768 seed + X25519 static secret.
-/// Zeroed on drop via `Zeroizing` (ML-KEM seed) and `X25519StaticSecret`'s
-/// built-in `Drop`/`Zeroize` implementation.
+///
+/// The ML-KEM seed is wrapped in `secrecy::Secret<[u8; 64]>` per the AGENTS.md
+/// hard constraint that "all sensitive material wrapped in `Secret<T>`". The
+/// X25519 part is stored as `X25519StaticSecret`, which is itself the
+/// canonical secret type for that primitive and already implements
+/// `ZeroizeOnDrop`; wrapping it in a second `Secret<T>` layer would force a
+/// byte-level round-trip on every use and create exactly the transient
+/// plaintext copies the wrapping is meant to avoid.
 pub struct HybridKemSecretKey {
-    mlkem_seed: Zeroizing<[u8; MLKEM_SEED_SIZE]>,
+    mlkem_seed: Secret<[u8; MLKEM_SEED_SIZE]>,
     /// Stored as `X25519StaticSecret` directly so the bytes are never
     /// copied out onto the stack on use (decapsulation borrows `&self`).
     /// `StaticSecret` zeroizes its inner `[u8; 32]` on drop.
@@ -77,7 +84,7 @@ impl HybridKemSecretKey {
     /// Serialise the secret key seed. Keep this zeroized.
     pub fn to_bytes(&self) -> Zeroizing<[u8; HYBRID_SK_SIZE]> {
         let mut out = Zeroizing::new([0u8; HYBRID_SK_SIZE]);
-        out[..MLKEM_SEED_SIZE].copy_from_slice(&*self.mlkem_seed);
+        out[..MLKEM_SEED_SIZE].copy_from_slice(self.mlkem_seed.expose_secret());
         // `to_bytes()` returns a fresh `[u8; 32]` containing the raw X25519
         // scalar; wrap it in `Zeroizing` so the temporary is wiped as soon as
         // this scope ends instead of lingering on the stack/in registers.
@@ -89,8 +96,17 @@ impl HybridKemSecretKey {
 
     /// Deserialise from a secret key seed (zeroized).
     pub fn from_bytes(bytes: &Zeroizing<[u8; HYBRID_SK_SIZE]>) -> Self {
-        let mut mlkem_seed = Zeroizing::new([0u8; MLKEM_SEED_SIZE]);
-        mlkem_seed.copy_from_slice(&bytes[..MLKEM_SEED_SIZE]);
+        let mut mlkem_seed_buf = Zeroizing::new([0u8; MLKEM_SEED_SIZE]);
+        mlkem_seed_buf.copy_from_slice(&bytes[..MLKEM_SEED_SIZE]);
+        // Move the staging buffer into the `Secret` wrapper via `mem::replace`
+        // (overwriting with zeros) so the staging slot is zeroed in the same
+        // step (no transient duplicate of the seed remains alive). We use
+        // `mem::replace` rather than `mem::take` because `Default` is not
+        // implemented for `[u8; 64]` in core.
+        let mlkem_seed = Secret::new(std::mem::replace(
+            &mut *mlkem_seed_buf,
+            [0u8; MLKEM_SEED_SIZE],
+        ));
         // Copy the X25519 portion into a `Zeroizing` buffer, then `mem::take`
         // it into `X25519StaticSecret::from`. Taking (vs dereferencing) wipes
         // the buffer's content in the same step it hands ownership to
@@ -138,8 +154,12 @@ pub fn hybrid_kem_keygen() -> (HybridKemPublicKey, HybridKemSecretKey) {
     let mut mlkem_ek_bytes = [0u8; MLKEM_EK_SIZE];
     mlkem_ek_bytes.copy_from_slice(ek_exported.as_ref());
 
-    let mut mlkem_seed = Zeroizing::new([0u8; MLKEM_SEED_SIZE]);
-    mlkem_seed.copy_from_slice(dk_seed.as_ref());
+    let mut mlkem_seed_buf = Zeroizing::new([0u8; MLKEM_SEED_SIZE]);
+    mlkem_seed_buf.copy_from_slice(dk_seed.as_ref());
+    let mlkem_seed = Secret::new(std::mem::replace(
+        &mut *mlkem_seed_buf,
+        [0u8; MLKEM_SEED_SIZE],
+    ));
 
     // X25519 — generate the static secret directly; no intermediate byte
     // buffer is created (would otherwise sit unzeroized on the stack).
@@ -204,7 +224,8 @@ pub fn hybrid_decapsulate(
     ct: &HybridCiphertext,
 ) -> Result<Zeroizing<[u8; 32]>> {
     // Reconstruct ML-KEM-768 decapsulation key from stored seed
-    let seed = ml_kem::Seed::try_from(sk.mlkem_seed.as_ref()).map_err(|_| Error::Decapsulate)?;
+    let seed = ml_kem::Seed::try_from(sk.mlkem_seed.expose_secret().as_slice())
+        .map_err(|_| Error::Decapsulate)?;
     let dk: DecapsulationKey768 = DecapsulationKey768::from_seed(seed);
 
     // ML-KEM decapsulate (infallible; implicit rejection)

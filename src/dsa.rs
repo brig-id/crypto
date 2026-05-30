@@ -13,6 +13,7 @@ use ml_dsa::{
     Generate, KeyExport, KeyInit, Keypair, MlDsa65, SignatureEncoding, Signer,
     SigningKey as MlDsaSigningKey, Verifier, VerifyingKey as MlDsaVerifyingKey,
 };
+use secrecy::{ExposeSecret, Secret};
 use zeroize::Zeroizing;
 
 use crate::{Error, Result};
@@ -22,12 +23,15 @@ const MLDSA65_SIG_LEN: usize = 3309;
 /// Byte length of an ML-DSA-65 verifying key (fixed by the standard).
 const MLDSA65_VK_LEN: usize = 1952;
 
-/// Hybrid signing (secret) key. Secret material is zeroed on drop.
+/// Hybrid signing (secret) key. Both seeds are wrapped in `secrecy::Secret`
+/// per the AGENTS.md hard constraint that "all sensitive material wrapped in
+/// `Secret<T>`". `Secret<[u8; 32]>` zeroizes the inner array on drop and
+/// blocks accidental `Debug`/`Display`/`Clone` of key material.
 pub struct HybridDsaSigningKey {
     /// ML-DSA-65 seed (32 bytes, the preferred compact representation).
-    mldsa_seed: Zeroizing<[u8; 32]>,
+    mldsa_seed: Secret<[u8; 32]>,
     /// Ed25519 signing key seed (32 bytes).
-    ed25519_seed: Zeroizing<[u8; 32]>,
+    ed25519_seed: Secret<[u8; 32]>,
 }
 
 /// Hybrid verifying (public) key.
@@ -115,7 +119,7 @@ pub fn hybrid_keygen() -> (HybridDsaSigningKey, HybridDsaVerifyingKey) {
     let mldsa_vk_exported = mldsa_vk.to_bytes(); // KeyExport::to_bytes() → Key<VK>
 
     // Copy the exported 32-byte seed into a fixed-size, drop-zeroizing buffer.
-    let mut mldsa_seed = Zeroizing::new([0u8; 32]);
+    let mut mldsa_seed_buf = Zeroizing::new([0u8; 32]);
     let seed_bytes = AsRef::<[u8]>::as_ref(&mldsa_seed_exported);
     // The seed length is guaranteed by the `MlDsa65` type (`KeyExport::to_bytes`
     // returns a fixed-size 32-byte seed). A `debug_assert_eq!` here would still
@@ -123,16 +127,24 @@ pub fn hybrid_keygen() -> (HybridDsaSigningKey, HybridDsaVerifyingKey) {
     // `panic = "abort"` in release. `copy_from_slice` below is the authoritative
     // length check: if the upstream contract ever changed, it would panic in
     // both debug and release with the same abort behaviour we cannot prevent.
-    mldsa_seed.copy_from_slice(seed_bytes);
+    mldsa_seed_buf.copy_from_slice(seed_bytes);
+    // Move the staging buffer into the `Secret` wrapper via `mem::take` so the
+    // staging slot is wiped in the same step (no transient duplicate seed).
+    let mldsa_seed = Secret::new(std::mem::take(&mut *mldsa_seed_buf));
 
     // Ed25519
     let ed25519_sk = Ed25519SigningKey::generate(&mut rand_core::OsRng);
     let ed25519_vk = ed25519_sk.verifying_key();
 
+    // Same staged-move pattern for the Ed25519 seed so its bytes never live
+    // outside a wiping container.
+    let mut ed25519_seed_buf = Zeroizing::new(ed25519_sk.to_bytes());
+    let ed25519_seed = Secret::new(std::mem::take(&mut *ed25519_seed_buf));
+
     (
         HybridDsaSigningKey {
             mldsa_seed,
-            ed25519_seed: Zeroizing::new(ed25519_sk.to_bytes()),
+            ed25519_seed,
         },
         HybridDsaVerifyingKey {
             mldsa_vk_bytes: AsRef::<[u8]>::as_ref(&mldsa_vk_exported).to_vec(),
@@ -144,11 +156,11 @@ pub fn hybrid_keygen() -> (HybridDsaSigningKey, HybridDsaVerifyingKey) {
 /// Sign `message` with the hybrid signing key.
 pub fn hybrid_sign(sk: &HybridDsaSigningKey, message: &[u8]) -> Result<HybridSignature> {
     // Reconstruct ML-DSA-65 signing key from stored 32-byte seed (KeyInit::new_from_slice)
-    let mldsa_sk = MlDsaSigningKey::<MlDsa65>::new_from_slice(&*sk.mldsa_seed)
+    let mldsa_sk = MlDsaSigningKey::<MlDsa65>::new_from_slice(sk.mldsa_seed.expose_secret())
         .map_err(|_| Error::InvalidKey)?;
 
     // Reconstruct Ed25519 signing key from seed bytes
-    let ed25519_sk = Ed25519SigningKey::from_bytes(&sk.ed25519_seed);
+    let ed25519_sk = Ed25519SigningKey::from_bytes(sk.ed25519_seed.expose_secret());
 
     // Sign with ML-DSA-65
     let mldsa_sig = mldsa_sk.sign(message);
