@@ -10,8 +10,8 @@ rust-version = "1.85"
 # Symmetric encryption
 aes-gcm = { version = "0.10", features = ["aes"] }
 # Key derivation
-hkdf = "0.12"
-sha3 = "0.10"
+hkdf = "0.13"
+sha3 = "0.11"
 # Classical signatures
 ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
 # Post-quantum KEM (FIPS 203)
@@ -24,7 +24,7 @@ x25519-dalek = { version = "2", features = ["static_secrets"] }
 rand_core = { version = "0.6", features = ["getrandom"] }
 # Memory safety
 zeroize = { version = "1", features = ["derive"] }
-secrecy = "0.8"
+secrecy = "0.10"
 # Hex encoding for MASTER_KEY
 hex = "0.4"
 # Error handling
