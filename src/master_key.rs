@@ -16,25 +16,27 @@ pub struct MasterKey(Secret<[u8; 32]>);
 impl MasterKey {
     /// Load from `BRIGID_MASTER_KEY` environment variable (64 hex chars).
     pub fn from_env() -> Result<Self> {
-        let raw = match std::env::var("BRIGID_MASTER_KEY") {
-            Ok(v) => v,
-            Err(std::env::VarError::NotPresent) => {
+        // Read as `OsString` so we own the raw bytes and can zeroize them on
+        // every exit path (including the non-UTF-8 error path). `std::env::var`
+        // would otherwise drop the offending `OsString` from
+        // `VarError::NotUnicode(_)` without wiping it, leaving an extra copy
+        // of potential key material in process memory.
+        let raw_os = match std::env::var_os("BRIGID_MASTER_KEY") {
+            Some(v) => v,
+            None => {
                 return Err(Error::InvalidMasterKey(
                     "master key environment variable not set",
                 ));
             }
-            Err(std::env::VarError::NotUnicode(_)) => {
-                // Surface the precise failure without echoing the offending
-                // bytes (they may carry user data and must never appear in
-                // logs). The variable name is also omitted from the message
-                // per AGENTS.md (`BRIGID_MASTER_KEY` must never appear in
-                // logs, panics, or error messages).
-                return Err(Error::InvalidMasterKey(
-                    "master key environment variable contains non-UTF-8 bytes",
-                ));
-            }
         };
-        let hex_str = Zeroizing::new(raw);
+        let hex_str = os_string_into_zeroizing_string(raw_os).map_err(|_| {
+            // Surface the precise failure without echoing the offending
+            // bytes (they may carry user data and must never appear in
+            // logs). The variable name is also omitted from the message
+            // per AGENTS.md (`BRIGID_MASTER_KEY` must never appear in
+            // logs, panics, or error messages).
+            Error::InvalidMasterKey("master key environment variable contains non-UTF-8 bytes")
+        })?;
         Self::from_hex(&hex_str)
     }
 
@@ -67,6 +69,43 @@ impl MasterKey {
     pub(crate) fn expose(&self) -> &[u8; 32] {
         self.0.expose_secret()
     }
+}
+
+/// Convert an owned `OsString` into a `Zeroizing<String>` while guaranteeing
+/// the original bytes are wiped on both the success and the non-UTF-8 error
+/// path.
+///
+/// On unix the underlying byte buffer is taken via `OsStringExt::into_vec`
+/// and wrapped in `Zeroizing` so it is zeroed on drop regardless of which
+/// arm matches. On non-unix platforms `OsString` does not expose a safe
+/// byte-level interface; we fall back to `OsString::into_string` (best
+/// effort), with the same external contract.
+#[cfg(unix)]
+fn os_string_into_zeroizing_string(
+    os: std::ffi::OsString,
+) -> std::result::Result<Zeroizing<String>, ()> {
+    use std::os::unix::ffi::OsStringExt;
+    let mut bytes = Zeroizing::new(os.into_vec());
+    if std::str::from_utf8(&bytes).is_err() {
+        return Err(());
+    }
+    // UTF-8 validity just verified above; take ownership without re-copying.
+    let owned = std::mem::take(&mut *bytes);
+    // SAFETY: `std::str::from_utf8(&owned)` succeeded immediately above and
+    // `owned` is the exact same byte sequence (moved, not modified).
+    Ok(Zeroizing::new(unsafe {
+        String::from_utf8_unchecked(owned)
+    }))
+}
+
+#[cfg(not(unix))]
+fn os_string_into_zeroizing_string(
+    os: std::ffi::OsString,
+) -> std::result::Result<Zeroizing<String>, ()> {
+    // Non-unix `OsString` has no safe byte-level mutate API, so the
+    // original buffer may not be zeroized when it is dropped on the error
+    // path. The success path is wrapped in `Zeroizing` for the UTF-8 case.
+    os.into_string().map(Zeroizing::new).map_err(|_| ())
 }
 
 #[cfg(test)]
