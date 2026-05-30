@@ -49,7 +49,7 @@ jobs:
         run: cargo binstall --no-confirm --version 0.13.1 cargo-fuzz
 
       - name: Restore corpus cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.sha }}
@@ -78,7 +78,7 @@ jobs:
 
       - name: Save corpus cache
         if: always()
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.sha }}
