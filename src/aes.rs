@@ -154,4 +154,35 @@ mod tests {
     fn from_bytes_too_short() {
         assert!(EncryptedBlob::from_bytes(&[0u8; 10]).is_err());
     }
+
+    #[test]
+    fn accessors_expose_nonce_and_ciphertext() {
+        let key = test_key();
+        let blob = encrypt(&key, b"payload").unwrap();
+        // `nonce()` mirrors the stored nonce; `ciphertext()` includes the GCM tag.
+        assert_eq!(blob.nonce(), &blob.nonce);
+        assert_eq!(blob.ciphertext(), blob.ciphertext.as_slice());
+        assert!(
+            blob.ciphertext().len() >= 16,
+            "ciphertext must include 16-byte tag"
+        );
+    }
+
+    #[test]
+    fn master_key_round_trip() {
+        let master = MasterKey::from_hex(&"11".repeat(32)).unwrap();
+        let plaintext = b"master-derived secret";
+        let blob = encrypt_with_master(&master, plaintext).unwrap();
+        let recovered = decrypt_with_master(&master, &blob).unwrap();
+        assert_eq!(recovered.as_slice(), plaintext);
+    }
+
+    #[test]
+    fn master_key_wrong_master_fails() {
+        let master = MasterKey::from_hex(&"22".repeat(32)).unwrap();
+        let other = MasterKey::from_hex(&"33".repeat(32)).unwrap();
+        let blob = encrypt_with_master(&master, b"secret").unwrap();
+        // A blob sealed under one master key must not decrypt under another.
+        assert!(decrypt_with_master(&other, &blob).is_err());
+    }
 }

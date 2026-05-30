@@ -137,4 +137,62 @@ mod tests {
         let padded = format!("  {}  ", "ab".repeat(32));
         assert!(MasterKey::from_hex(&padded).is_ok());
     }
+
+    // The `BRIGID_MASTER_KEY` environment variable is process-global, so all
+    // env-based assertions live in a single test to avoid races with the
+    // parallel test runner. No other test touches this variable.
+    #[test]
+    fn from_env_paths() {
+        const VAR: &str = "BRIGID_MASTER_KEY";
+
+        // Unset → error.
+        // SAFETY: single-threaded within this test; no other test reads or
+        // writes `BRIGID_MASTER_KEY`.
+        unsafe { std::env::remove_var(VAR) };
+        assert!(MasterKey::from_env().is_err());
+
+        // Valid 64-hex → ok.
+        unsafe { std::env::set_var(VAR, "cd".repeat(32)) };
+        let key = MasterKey::from_env().expect("valid hex must load");
+        assert_eq!(key.expose(), &[0xcd; 32]);
+
+        // Wrong length → error.
+        unsafe { std::env::set_var(VAR, "cd".repeat(31)) };
+        assert!(MasterKey::from_env().is_err());
+
+        // Clean up so we never leave key material in the environment.
+        unsafe { std::env::remove_var(VAR) };
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn from_env_non_utf8() {
+        use std::os::unix::ffi::OsStrExt;
+        const VAR: &str = "BRIGID_MASTER_KEY_NON_UTF8";
+
+        let invalid = std::ffi::OsStr::from_bytes(&[0x66, 0x80, 0x80]);
+        // Exercise the non-UTF-8 conversion path directly (rather than via the
+        // process environment) so the assertion is hermetic.
+        assert!(os_string_into_zeroizing_string(invalid.to_os_string()).is_err());
+
+        // Sanity: the valid path returns the same string.
+        let ok = os_string_into_zeroizing_string("deadbeef".into()).expect("valid utf-8");
+        assert_eq!(&*ok, "deadbeef");
+        let _ = VAR;
+    }
+
+    #[test]
+    fn from_file_valid_and_missing() {
+        let dir = std::env::temp_dir();
+        let path = dir.join(format!("brigid-master-key-test-{}", std::process::id()));
+
+        std::fs::write(&path, format!("{}\n", "ef".repeat(32))).expect("write temp key file");
+        let key = MasterKey::from_file(&path).expect("valid key file must load");
+        assert_eq!(key.expose(), &[0xef; 32]);
+        std::fs::remove_file(&path).ok();
+
+        // Missing file → error (I/O error propagated).
+        let missing = dir.join("brigid-master-key-does-not-exist-xyz");
+        assert!(MasterKey::from_file(&missing).is_err());
+    }
 }
