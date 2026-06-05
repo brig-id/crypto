@@ -1,0 +1,13 @@
+{
+  "conventionalCommits.gitmoji": true,
+  "conventionalCommits.scopes": [
+    "aes",
+    "hkdf",
+    "kem",
+    "dsa",
+    "hybrid",
+    "fuzz",
+    "ci",
+    "deps"
+  ]
+}
