@@ -13,7 +13,7 @@ use ml_dsa::{
     Generate, KeyExport, KeyInit, Keypair, MlDsa65, SignatureEncoding, Signer,
     SigningKey as MlDsaSigningKey, Verifier, VerifyingKey as MlDsaVerifyingKey,
 };
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretBox};
 use zeroize::Zeroizing;
 
 use crate::{Error, Result};
@@ -29,9 +29,9 @@ const MLDSA65_VK_LEN: usize = 1952;
 /// blocks accidental `Debug`/`Display`/`Clone` of key material.
 pub struct HybridDsaSigningKey {
     /// ML-DSA-65 seed (32 bytes, the preferred compact representation).
-    mldsa_seed: Secret<[u8; 32]>,
+    mldsa_seed: SecretBox<[u8; 32]>,
     /// Ed25519 signing key seed (32 bytes).
-    ed25519_seed: Secret<[u8; 32]>,
+    ed25519_seed: SecretBox<[u8; 32]>,
 }
 
 /// Hybrid verifying (public) key.
@@ -130,7 +130,7 @@ pub fn hybrid_keygen() -> (HybridDsaSigningKey, HybridDsaVerifyingKey) {
     mldsa_seed_buf.copy_from_slice(seed_bytes);
     // Move the staging buffer into the `Secret` wrapper via `mem::take` so the
     // staging slot is wiped in the same step (no transient duplicate seed).
-    let mldsa_seed = Secret::new(std::mem::take(&mut *mldsa_seed_buf));
+    let mldsa_seed = SecretBox::new(Box::new(std::mem::take(&mut *mldsa_seed_buf)));
 
     // Ed25519
     let ed25519_sk = Ed25519SigningKey::generate(&mut rand_core::OsRng);
@@ -139,7 +139,7 @@ pub fn hybrid_keygen() -> (HybridDsaSigningKey, HybridDsaVerifyingKey) {
     // Same staged-move pattern for the Ed25519 seed so its bytes never live
     // outside a wiping container.
     let mut ed25519_seed_buf = Zeroizing::new(ed25519_sk.to_bytes());
-    let ed25519_seed = Secret::new(std::mem::take(&mut *ed25519_seed_buf));
+    let ed25519_seed = SecretBox::new(Box::new(std::mem::take(&mut *ed25519_seed_buf)));
 
     (
         HybridDsaSigningKey {

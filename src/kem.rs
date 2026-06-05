@@ -14,7 +14,7 @@ use ml_kem::{
     DecapsulationKey768, EncapsulationKey768, KeyExport, MlKem768,
     kem::{Decapsulate, Encapsulate, Kem, TryKeyInit},
 };
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretBox};
 use x25519_dalek::{PublicKey as X25519PublicKey, StaticSecret as X25519StaticSecret};
 use zeroize::Zeroizing;
 
@@ -45,7 +45,7 @@ pub struct HybridKemPublicKey {
 /// byte-level round-trip on every use and create exactly the transient
 /// plaintext copies the wrapping is meant to avoid.
 pub struct HybridKemSecretKey {
-    mlkem_seed: Secret<[u8; MLKEM_SEED_SIZE]>,
+    mlkem_seed: SecretBox<[u8; MLKEM_SEED_SIZE]>,
     /// Stored as `X25519StaticSecret` directly so the bytes are never
     /// copied out onto the stack on use (decapsulation borrows `&self`).
     /// `StaticSecret` zeroizes its inner `[u8; 32]` on drop.
@@ -103,10 +103,10 @@ impl HybridKemSecretKey {
         // step (no transient duplicate of the seed remains alive). We use
         // `mem::replace` rather than `mem::take` because `Default` is not
         // implemented for `[u8; 64]` in core.
-        let mlkem_seed = Secret::new(std::mem::replace(
+        let mlkem_seed = SecretBox::new(Box::new(std::mem::replace(
             &mut *mlkem_seed_buf,
             [0u8; MLKEM_SEED_SIZE],
-        ));
+        )));
         // Copy the X25519 portion into a `Zeroizing` buffer, then `mem::take`
         // it into `X25519StaticSecret::from`. Taking (vs dereferencing) wipes
         // the buffer's content in the same step it hands ownership to
@@ -156,10 +156,10 @@ pub fn hybrid_kem_keygen() -> (HybridKemPublicKey, HybridKemSecretKey) {
 
     let mut mlkem_seed_buf = Zeroizing::new([0u8; MLKEM_SEED_SIZE]);
     mlkem_seed_buf.copy_from_slice(dk_seed.as_ref());
-    let mlkem_seed = Secret::new(std::mem::replace(
+    let mlkem_seed = SecretBox::new(Box::new(std::mem::replace(
         &mut *mlkem_seed_buf,
         [0u8; MLKEM_SEED_SIZE],
-    ));
+    )));
 
     // X25519 — generate the static secret directly; no intermediate byte
     // buffer is created (would otherwise sit unzeroized on the stack).
