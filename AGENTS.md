@@ -18,10 +18,6 @@ issues, pull requests. No exceptions.
 - MASTER_KEY loading and validation
 - Fuzz targets (`fuzz/`)
 
-## Current phase
-
-**Phase 1** — see `/workspaces/.dev/phases/phase-1.md` for the full checklist.
-
 ## Hard security constraints
 
 These rules are non-negotiable. Every AI agent working in this repo must enforce them.
@@ -40,7 +36,7 @@ These rules are non-negotiable. Every AI agent working in this repo must enforce
 ## Algorithms
 
 | Purpose | Algorithm | Standard |
-|---|---|---|
+| --- | --- | --- |
 | Symmetric encryption | AES-256-GCM | NIST |
 | Key derivation | HKDF-SHA3-256 | RFC 5869 |
 | Classical signatures | Ed25519 | RFC 8032 |
@@ -54,6 +50,48 @@ These rules are non-negotiable. Every AI agent working in this repo must enforce
 - `ml-kem`, `ml-dsa` — RustCrypto PQC
 - `zeroize`, `secrecy` — memory safety
 - `rand_core`, `getrandom` — CSPRNG
+
+## Commit conventions
+
+Format: `type(scope): <emoji> description`
+
+| Type | Emoji | When |
+| --- | --- | --- |
+| `feat` | ✨ | New feature |
+| `fix` | 🐛 | Bug fix |
+| `docs` | 📝 | Documentation only |
+| `chore` | 🔧 | Maintenance, config |
+| `test` | ✅ | Tests |
+| `refactor` | ♻️ | Restructuring, no behaviour change |
+| `perf` | ⚡️ | Performance |
+| `style` | 🎨 | Formatting only |
+| `ci` | 👷 | CI/CD |
+| `security` | 🔒 | Security fix or hardening |
+| `build` | 📦 | Build system, dependencies |
+| `revert` | ⏪ | Reverts a previous commit |
+
+### Allowed scopes
+
+| Scope | Maps to |
+| --- | --- |
+| `aes` | AES-256-GCM module |
+| `hkdf` | HKDF-SHA3-256 module |
+| `kem` | ML-KEM-768 + X25519 hybrid KEM |
+| `dsa` | ML-DSA-65 + Ed25519 hybrid signatures |
+| `hybrid` | Shared hybrid construction helpers |
+| `fuzz` | Fuzz targets (`fuzz/`) |
+| `ci` | `.github/workflows/` |
+| `deps` | Dependency bumps |
+
+**Do not use a scope outside this list.** If a new module is added, update this table
+and `.vscode/settings.json`.
+
+```text
+feat(kem): ✨ add ML-KEM-768 encapsulation
+fix(aes): 🐛 reject nonces shorter than 96 bits
+test(hkdf): ✅ add domain separation collision test
+ci(ci): 👷 add conventional commit check
+```
 
 ## Commands
 
