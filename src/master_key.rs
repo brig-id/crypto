@@ -4,14 +4,14 @@
 //! string in the `BRIGID_MASTER_KEY` environment variable or a key file.
 //! It is never logged or included in error messages.
 
-use secrecy::{ExposeSecret, Secret};
+use secrecy::{ExposeSecret, SecretBox};
 use zeroize::Zeroizing;
 
 use crate::{Error, Result};
 
 /// Wrapper around the 32-byte master key.
-/// Zeroed on drop via `secrecy::Secret`.
-pub struct MasterKey(Secret<[u8; 32]>);
+/// Zeroed on drop via `secrecy::SecretBox`.
+pub struct MasterKey(SecretBox<[u8; 32]>);
 
 impl MasterKey {
     /// Load from `BRIGID_MASTER_KEY` environment variable (64 hex chars).
@@ -52,11 +52,9 @@ impl MasterKey {
         hex::decode_to_slice(hex_str, &mut *bytes)?;
         // `std::mem::take` moves the array out of the `Zeroizing` buffer and
         // replaces it with `[0; 32]` in a single step, so only one plaintext
-        // copy of the key exists at any moment. `Secret::new(*bytes)` would
-        // instead copy the array out via `Copy` and leave the original
-        // plaintext alive in `bytes` until the function returned, briefly
-        // doubling the in-memory footprint of the master key.
-        Ok(Self(Secret::new(std::mem::take(&mut *bytes))))
+        // copy of the key exists at any moment. `SecretBox::new(Box::new(*bytes))`
+        // would copy via `Copy`; `take` avoids that extra copy on the stack.
+        Ok(Self(SecretBox::new(Box::new(std::mem::take(&mut *bytes)))))
     }
 
     /// Load from a file containing a hex-encoded key (64 hex chars).
