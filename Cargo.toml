@@ -8,10 +8,10 @@ rust-version = "1.85"
 
 [dependencies]
 # Symmetric encryption
-aes-gcm = { version = "0.10", features = ["aes"] }
+aes-gcm = { version = "0.11", features = ["aes"] }
 # Key derivation
 hkdf = "0.13"
-sha3 = "0.11"
+sha3 = "0.12"
 # Classical signatures
 ed25519-dalek = { version = "2", features = ["rand_core", "zeroize"] }
 # Post-quantum KEM (FIPS 203)
