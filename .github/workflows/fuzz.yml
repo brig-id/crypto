@@ -22,7 +22,7 @@ jobs:
           - fuzz_hybrid_verify
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install mold linker
         # The repo's `.cargo/config.toml` forces `-fuse-ld=mold` on
@@ -38,7 +38,7 @@ jobs:
       - name: Install cargo-binstall
         # Pinned action commit (v1.19.1) — fetches a checksummed cargo-binstall
         # binary from its signed GitHub release.
-        uses: cargo-bins/cargo-binstall@aaa84a43aec4955a42c5ffc65d258961e39f276e # v1.19.1
+        uses: cargo-bins/cargo-binstall@e00d2c94cc0067b77737821097a62d91c0301baa # v1.21.1
 
       - name: Install cargo-fuzz
         # Use the upstream prebuilt binary from the cargo-fuzz GitHub release
@@ -49,7 +49,7 @@ jobs:
         run: cargo binstall --no-confirm --version 0.13.1 cargo-fuzz
 
       - name: Restore corpus cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v6
         with:
           path: fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.sha }}
@@ -78,7 +78,7 @@ jobs:
 
       - name: Save corpus cache
         if: always()
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v6
         with:
           path: fuzz/corpus/${{ matrix.target }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.sha }}
