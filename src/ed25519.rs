@@ -3,13 +3,12 @@
 //! Uses `ed25519-dalek` v2 (RFC 8032). Keys are zeroed on drop.
 
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
-use rand_core::OsRng;
 
 use crate::{Error, Result};
 
 /// Generate a fresh Ed25519 keypair.
 pub fn generate_keypair() -> (SigningKey, VerifyingKey) {
-    let sk = SigningKey::generate(&mut OsRng);
+    let sk = SigningKey::generate(&mut crate::os_rng());
     let vk = sk.verifying_key();
     (sk, vk)
 }

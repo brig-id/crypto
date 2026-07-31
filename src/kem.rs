@@ -163,7 +163,7 @@ pub fn hybrid_kem_keygen() -> (HybridKemPublicKey, HybridKemSecretKey) {
 
     // X25519 — generate the static secret directly; no intermediate byte
     // buffer is created (would otherwise sit unzeroized on the stack).
-    let x25519_sk = X25519StaticSecret::random_from_rng(rand_core::OsRng);
+    let x25519_sk = X25519StaticSecret::random_from_rng(&mut crate::os_rng());
     let x25519_pk_raw = X25519PublicKey::from(&x25519_sk);
 
     (
@@ -193,7 +193,7 @@ pub fn hybrid_encapsulate(
     mlkem_ct_bytes.copy_from_slice(mlkem_ct.as_ref());
 
     // X25519 ephemeral DH
-    let eph_sk = X25519StaticSecret::random_from_rng(rand_core::OsRng);
+    let eph_sk = X25519StaticSecret::random_from_rng(&mut crate::os_rng());
     let eph_pk = X25519PublicKey::from(&eph_sk);
     let recipient_pk = X25519PublicKey::from(pk.x25519_pk);
     let x25519_ss = eph_sk.diffie_hellman(&recipient_pk);
