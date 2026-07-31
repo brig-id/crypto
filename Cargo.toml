@@ -11,7 +11,10 @@ rust-version = "1.85"
 aes-gcm = { version = "0.11", features = ["aes"] }
 # Key derivation
 hkdf = "0.13"
-sha3 = "0.12"
+# sha3 0.12 dropped the `digest::core_api::CoreProxy` impl (rewrote to a
+# monolithic sponge-based struct), which breaks generic HMAC construction —
+# pinned to 0.11, the last version compatible with `Hkdf<Sha3_256>`.
+sha3 = "0.11"
 # Classical signatures
 ed25519-dalek = { version = "3", features = ["rand_core", "zeroize"] }
 # Post-quantum KEM (FIPS 203)
@@ -21,7 +24,9 @@ ml-dsa = { version = "0.1", features = ["getrandom", "zeroize"] }
 # X25519 for hybrid KEM
 x25519-dalek = { version = "3", features = ["static_secrets"] }
 # CSPRNG
-rand_core = { version = "0.6", features = ["getrandom"] }
+rand_core = "0.10"
+# `OsRng` moved out of rand_core 0.10 into getrandom's `SysRng`.
+getrandom = { version = "0.4", features = ["sys_rng"] }
 # Memory safety
 zeroize = { version = "1", features = ["derive"] }
 secrecy = "0.10"

@@ -10,8 +10,8 @@
 
 use ed25519_dalek::{Signature as Ed25519Signature, SigningKey as Ed25519SigningKey};
 use ml_dsa::{
-    Generate, KeyExport, KeyInit, Keypair, MlDsa65, SignatureEncoding, Signer,
-    SigningKey as MlDsaSigningKey, Verifier, VerifyingKey as MlDsaVerifyingKey,
+    Generate, KeyExport, KeyInit, Keypair, MlDsa65, SignatureEncoding,
+    SigningKey as MlDsaSigningKey, VerifyingKey as MlDsaVerifyingKey,
 };
 use secrecy::{ExposeSecret, SecretBox};
 use zeroize::Zeroizing;
@@ -133,7 +133,7 @@ pub fn hybrid_keygen() -> (HybridDsaSigningKey, HybridDsaVerifyingKey) {
     let mldsa_seed = SecretBox::new(Box::new(std::mem::take(&mut *mldsa_seed_buf)));
 
     // Ed25519
-    let ed25519_sk = Ed25519SigningKey::generate(&mut rand_core::OsRng);
+    let ed25519_sk = Ed25519SigningKey::generate(&mut crate::os_rng());
     let ed25519_vk = ed25519_sk.verifying_key();
 
     // Same staged-move pattern for the Ed25519 seed so its bytes never live

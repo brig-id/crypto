@@ -5,8 +5,8 @@
 //! - All errors are opaque — no oracle information leaked.
 
 use aes_gcm::{
-    Aes256Gcm, Key, Nonce,
-    aead::{Aead, AeadCore, KeyInit, OsRng},
+    Aes256Gcm, Nonce,
+    aead::{Aead, Generate, KeyInit},
 };
 use zeroize::Zeroizing;
 
@@ -56,8 +56,8 @@ impl EncryptedBlob {
 
 /// Encrypt `plaintext` with `key` (32 bytes). Nonce is chosen randomly.
 pub fn encrypt(key: &[u8; 32], plaintext: &[u8]) -> Result<EncryptedBlob> {
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
-    let nonce_arr = Aes256Gcm::generate_nonce(&mut OsRng);
+    let cipher = Aes256Gcm::new(key.into());
+    let nonce_arr = aes_gcm::aead::Nonce::<Aes256Gcm>::generate_from_rng(&mut crate::os_rng());
     let ciphertext = cipher
         .encrypt(&nonce_arr, plaintext)
         .map_err(|_| Error::Encrypt)?;
@@ -68,8 +68,8 @@ pub fn encrypt(key: &[u8; 32], plaintext: &[u8]) -> Result<EncryptedBlob> {
 
 /// Decrypt `blob` with `key`. Returns plaintext zeroed on drop.
 pub fn decrypt(key: &[u8; 32], blob: &EncryptedBlob) -> Result<Zeroizing<Vec<u8>>> {
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
-    let nonce = Nonce::from_slice(&blob.nonce);
+    let cipher = Aes256Gcm::new(key.into());
+    let nonce: &Nonce<_> = (&blob.nonce).into();
     let plaintext = cipher
         .decrypt(nonce, blob.ciphertext.as_ref())
         .map_err(|_| Error::Decrypt)?;
