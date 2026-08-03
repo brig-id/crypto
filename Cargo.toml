@@ -14,7 +14,7 @@ hkdf = "0.13"
 # sha3 0.12 dropped the `digest::core_api::CoreProxy` impl (rewrote to a
 # monolithic sponge-based struct), which breaks generic HMAC construction —
 # pinned to 0.11, the last version compatible with `Hkdf<Sha3_256>`.
-sha3 = "0.11"
+sha3 = "0.12"
 # Classical signatures
 ed25519-dalek = { version = "3", features = ["rand_core", "zeroize"] }
 # Post-quantum KEM (FIPS 203)
