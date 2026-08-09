@@ -131,6 +131,25 @@ mod tests {
     }
 
     #[test]
+    fn from_hex_error_debug_does_not_leak_input() {
+        // hex::FromHexError's own Debug impl embeds the offending character
+        // and its byte index — {:?}-formatting Error::HexDecode directly
+        // would leak a fragment of BRIGID_MASTER_KEY into any log or panic
+        // message (e.g. the `.expect()` call sites in server-leaf's
+        // startup path). Error's Debug is implemented manually to delegate
+        // to the redacted Display output instead of deriving it.
+        let err = match MasterKey::from_hex(&"zz".repeat(32)) {
+            Err(e) => e,
+            Ok(_) => panic!("expected an error"),
+        };
+        let debug_output = format!("{err:?}");
+        assert!(
+            !debug_output.contains('z'),
+            "Debug output must not leak input characters: {debug_output}"
+        );
+    }
+
+    #[test]
     fn from_hex_strips_whitespace() {
         let padded = format!("  {}  ", "ab".repeat(32));
         assert!(MasterKey::from_hex(&padded).is_ok());
