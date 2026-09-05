@@ -8,6 +8,8 @@ allow = [
   "ISC",
   "BSD-3-Clause",
   "CC0-1.0",
+  # This crate's own license.
+  "LGPL-3.0-or-later",
 ]
 confidence-threshold = 0.8
 
