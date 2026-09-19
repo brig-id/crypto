@@ -65,7 +65,7 @@ dependencies = [
  "aes-gcm",
  "ed25519-dalek",
  "getrandom",
- "hex",
+ "helpers4",
  "hkdf",
  "ml-dsa",
  "ml-kem",
@@ -264,10 +264,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "hex"
-version = "0.4.3"
+name = "helpers4"
+version = "0.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+checksum = "69fff88d656a7287d9a9101bbc7a734bae0154261f7927f28645504c68c0a531"
 
 [[package]]
 name = "hkdf"

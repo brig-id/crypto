@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- `Error::HexDecode` now wraps `helpers4::hex::DecodeError` instead of
+  `hex::FromHexError` (the `hex` dependency is replaced by `helpers4`). The
+  redacted `Debug` output is unchanged.
+
 ## [0.1.0] - 2026-09-04
 
 First tagged release, alongside `core`, `server-leaf`, and `app`.
