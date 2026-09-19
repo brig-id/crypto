@@ -1,7 +1,7 @@
 /// Unified error type for all brigid-crypto operations.
 ///
 /// Never includes secret material in error messages — including `Debug`.
-/// `hex::FromHexError`'s own `Debug` impl embeds the offending character and
+/// `helpers4::hex::DecodeError`'s own `Debug` impl embeds the offending character and
 /// its byte index, which for `HexDecode` (raised while parsing
 /// `BRIGID_MASTER_KEY`) would leak a fragment of the master key into any
 /// `{:?}`-formatted log or panic message (e.g. `.expect()` call sites).
@@ -34,7 +34,7 @@ pub enum Error {
     InvalidKey,
 
     #[error("hex decode failed")]
-    HexDecode(#[from] hex::FromHexError),
+    HexDecode(#[from] helpers4::hex::DecodeError),
 
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),

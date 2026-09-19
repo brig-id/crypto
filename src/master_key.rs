@@ -49,7 +49,7 @@ impl MasterKey {
             ));
         }
         let mut bytes = Zeroizing::new([0u8; 32]);
-        hex::decode_to_slice(hex_str, &mut *bytes)?;
+        helpers4::hex::decode_to_slice(hex_str, &mut *bytes)?;
         // `std::mem::take` moves the array out of the `Zeroizing` buffer and
         // replaces it with `[0; 32]` in a single step, so only one plaintext
         // copy of the key exists at any moment. `SecretBox::new(Box::new(*bytes))`
