@@ -31,7 +31,7 @@ getrandom = { version = "0.4", features = ["sys_rng"] }
 zeroize = { version = "1", features = ["derive"] }
 secrecy = "0.10"
 # Hex decoding for MASTER_KEY
-helpers4 = { version = "0.0.1", default-features = false, features = ["hex"] }
+helpers4 = { version = "0.0.7", default-features = false, features = ["hex"] }
 # Error handling
 thiserror = "2"
 
