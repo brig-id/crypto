@@ -265,9 +265,9 @@ dependencies = [
 
 [[package]]
 name = "helpers4"
-version = "0.0.1"
+version = "0.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69fff88d656a7287d9a9101bbc7a734bae0154261f7927f28645504c68c0a531"
+checksum = "a9a7739bcae23ec1992f485cb0e2439604391305b9daa49a479f4bf4e5c26715"
 
 [[package]]
 name = "hkdf"
