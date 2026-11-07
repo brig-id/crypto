@@ -8,6 +8,8 @@
     "hybrid",
     "fuzz",
     "ci",
-    "deps"
+    "deps",
+    "ai",
+    "docs"
   ]
 }
