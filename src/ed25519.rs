@@ -1,6 +1,6 @@
 //! Ed25519 classical signatures.
 //!
-//! Uses `ed25519-dalek` v2 (RFC 8032). Keys are zeroed on drop.
+//! Uses `ed25519-dalek` (RFC 8032). Keys are zeroed on drop.
 
 use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 
@@ -20,9 +20,11 @@ pub fn sign(key: &SigningKey, message: &[u8]) -> Signature {
 }
 
 /// Verify `sig` over `message` with `vk`. Returns `Ok(())` on success.
+///
+/// Strict verification: weak public keys and non-canonical signatures are
+/// rejected, so a given (key, message) pair has no second valid encoding.
 pub fn verify(vk: &VerifyingKey, message: &[u8], sig: &Signature) -> Result<()> {
-    use ed25519_dalek::Verifier;
-    vk.verify(message, sig).map_err(|_| Error::Verify)
+    vk.verify_strict(message, sig).map_err(|_| Error::Verify)
 }
 
 #[cfg(test)]

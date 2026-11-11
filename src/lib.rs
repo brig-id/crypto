@@ -1,7 +1,7 @@
 //! brigid-crypto: cryptographic primitives for brig·id.
 //!
-//! All sensitive types are wrapped in `secrecy::Secret` or `zeroize::Zeroizing`
-//! and zeroed on drop. No `unwrap()` on error paths.
+//! All sensitive types are wrapped in `secrecy::SecretBox` or
+//! `zeroize::Zeroizing` and zeroed on drop. No `unwrap()` on error paths.
 
 pub mod aes;
 pub mod dsa;
