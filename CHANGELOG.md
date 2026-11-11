@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Ed25519 verification is strict (`verify_strict`), in `ed25519::verify` and
+  in the Ed25519 half of the hybrid signature: weak public keys and
+  non-canonical signatures are rejected.
+- `MasterKey::from_env` no longer needs `unsafe`; the bytes of a non-UTF-8
+  value are still wiped.
 - `Error::HexDecode` now wraps `helpers4::hex::DecodeError` instead of
   `hex::FromHexError` (the `hex` dependency is replaced by `helpers4`). The
   redacted `Debug` output is unchanged.

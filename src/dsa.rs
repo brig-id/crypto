@@ -191,17 +191,17 @@ pub fn hybrid_verify(
         ed25519_dalek::VerifyingKey::from_bytes(&vk.ed25519_vk_bytes).map_err(|_| Error::Verify)?;
 
     // Verify ML-DSA-65
+    use ml_dsa::signature::Verifier as _;
     let mldsa_sig = ml_dsa::Signature::<MlDsa65>::try_from(sig.mldsa_sig.as_slice())
         .map_err(|_| Error::Verify)?;
     mldsa_vk
         .verify(message, &mldsa_sig)
         .map_err(|_| Error::Verify)?;
 
-    // Verify Ed25519
+    // Verify Ed25519 (strict, like `ed25519::verify`).
     let ed25519_sig = Ed25519Signature::from_bytes(&sig.ed25519_sig);
-    use ed25519_dalek::Verifier as _;
     ed25519_vk
-        .verify(message, &ed25519_sig)
+        .verify_strict(message, &ed25519_sig)
         .map_err(|_| Error::Verify)?;
 
     Ok(())

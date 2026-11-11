@@ -71,41 +71,26 @@ impl MasterKey {
 
 /// Convert an owned `OsString` into a `Zeroizing<String>`.
 ///
-/// **Unix:** guarantees the underlying byte buffer is wiped on both the
-/// success and the non-UTF-8 error path. The bytes are taken via
-/// `OsStringExt::into_vec` and wrapped in `Zeroizing`, so the original
-/// allocation is zeroed on drop regardless of which arm matches.
+/// **Unix:** the byte buffer is wiped on both paths: inside the returned
+/// `Zeroizing<String>` on success, explicitly when the bytes are not UTF-8.
 ///
-/// **Non-unix (Windows / WASI):** best-effort only. `OsString` has no safe
-/// byte-level mutate API on these platforms, so the original buffer is
-/// dropped without an explicit wipe on the non-UTF-8 error path. The
-/// success path is still wrapped in `Zeroizing<String>` so the parsed hex
-/// is zeroed once consumed by `from_hex`.
+/// **Non-unix (Windows / WASI):** best-effort only. `OsString` gives no access
+/// to its bytes there, so a non-UTF-8 value is dropped without being wiped.
 #[cfg(unix)]
 fn os_string_into_zeroizing_string(
     os: std::ffi::OsString,
 ) -> std::result::Result<Zeroizing<String>, ()> {
     use std::os::unix::ffi::OsStringExt;
-    let mut bytes = Zeroizing::new(os.into_vec());
-    if std::str::from_utf8(&bytes).is_err() {
-        return Err(());
-    }
-    // UTF-8 validity just verified above; take ownership without re-copying.
-    let owned = std::mem::take(&mut *bytes);
-    // SAFETY: `std::str::from_utf8(&owned)` succeeded immediately above and
-    // `owned` is the exact same byte sequence (moved, not modified).
-    Ok(Zeroizing::new(unsafe {
-        String::from_utf8_unchecked(owned)
-    }))
+    use zeroize::Zeroize;
+    String::from_utf8(os.into_vec())
+        .map(Zeroizing::new)
+        .map_err(|e| e.into_bytes().zeroize())
 }
 
 #[cfg(not(unix))]
 fn os_string_into_zeroizing_string(
     os: std::ffi::OsString,
 ) -> std::result::Result<Zeroizing<String>, ()> {
-    // Non-unix `OsString` has no safe byte-level mutate API, so the
-    // original buffer may not be zeroized when it is dropped on the error
-    // path. The success path is wrapped in `Zeroizing` for the UTF-8 case.
     os.into_string().map(Zeroizing::new).map_err(|_| ())
 }
 
@@ -132,12 +117,10 @@ mod tests {
 
     #[test]
     fn from_hex_error_debug_does_not_leak_input() {
-        // hex::FromHexError's own Debug impl embeds the offending character
-        // and its byte index — {:?}-formatting Error::HexDecode directly
-        // would leak a fragment of BRIGID_MASTER_KEY into any log or panic
-        // message (e.g. the `.expect()` call sites in server-leaf's
-        // startup path). Error's Debug is implemented manually to delegate
-        // to the redacted Display output instead of deriving it.
+        // The hex decoder's own Debug output names the offending character
+        // and its position: formatting it with {:?} would put a fragment of
+        // the master key in a log or panic message. `Error` implements Debug
+        // by hand, through its redacted Display, for that reason.
         let err = match MasterKey::from_hex(&"zz".repeat(32)) {
             Err(e) => e,
             Ok(_) => panic!("expected an error"),
@@ -185,7 +168,6 @@ mod tests {
     #[test]
     fn from_env_non_utf8() {
         use std::os::unix::ffi::OsStrExt;
-        const VAR: &str = "BRIGID_MASTER_KEY_NON_UTF8";
 
         let invalid = std::ffi::OsStr::from_bytes(&[0x66, 0x80, 0x80]);
         // Exercise the non-UTF-8 conversion path directly (rather than via the
@@ -195,7 +177,6 @@ mod tests {
         // Sanity: the valid path returns the same string.
         let ok = os_string_into_zeroizing_string("deadbeef".into()).expect("valid utf-8");
         assert_eq!(&*ok, "deadbeef");
-        let _ = VAR;
     }
 
     #[test]
