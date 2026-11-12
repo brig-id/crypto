@@ -54,18 +54,6 @@ pub fn derive_user_key(
     Ok(okm)
 }
 
-/// Low-level HKDF expand used internally (e.g. by the hybrid KEM).
-/// `ikm` is zeroized after use by the caller.
-pub(crate) fn hkdf_expand_32(ikm: &[u8], info: &[u8]) -> Result<Zeroizing<[u8; 32]>> {
-    let hk = Hkdf::<Sha3_256>::new(None, ikm);
-    let mut okm = Zeroizing::new([0u8; 32]);
-    // 32 bytes < 255 × HashLen — this path is unreachable, but we propagate
-    // the error to avoid using expect() on crypto paths.
-    hk.expand(info, &mut *okm)
-        .map_err(|_| Error::KeyDerivation)?;
-    Ok(okm)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
