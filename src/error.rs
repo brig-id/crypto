@@ -24,6 +24,12 @@ pub enum Error {
     #[error("signature verification failed")]
     Verify,
 
+    #[error("signing failed")]
+    Sign,
+
+    #[error("signature context longer than 255 bytes")]
+    InvalidContext,
+
     #[error("KEM encapsulation failed")]
     Encapsulate,
 
