@@ -19,8 +19,10 @@ sha3 = "0.11"
 ed25519-dalek = { version = "3", features = ["rand_core", "zeroize"] }
 # Post-quantum KEM (FIPS 203)
 ml-kem = { version = "0.3", features = ["getrandom", "zeroize"] }
-# Post-quantum signatures (FIPS 204)
-ml-dsa = { version = "0.1", features = ["getrandom", "zeroize"] }
+# Post-quantum signatures (FIPS 204); rand_core for hedged signing
+ml-dsa = { version = "0.1", features = ["getrandom", "rand_core", "zeroize"] }
+# SHA-512 pre-hash of composite signatures (id-MLDSA65-Ed25519-SHA512)
+sha2 = "0.11"
 # X25519 for hybrid KEM
 x25519-dalek = { version = "3", features = ["static_secrets"] }
 # CSPRNG

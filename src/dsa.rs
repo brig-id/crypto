@@ -1,12 +1,15 @@
-//! ML-DSA-65 + Ed25519 hybrid signatures (FIPS 204).
+//! ML-DSA-65 + Ed25519 composite signatures: id-MLDSA65-Ed25519-SHA512 of
+//! draft-ietf-lamps-pq-composite-sigs (revision 19).
 //!
-//! Both signatures are required to verify. An attacker must break *both*
-//! ML-DSA-65 (post-quantum) and Ed25519 (classical) to forge a signature.
+//! Both signatures are required to verify: an attacker must break *both*
+//! ML-DSA-65 (post-quantum) and Ed25519 (classical) to forge one. Each half
+//! signs the composite's message representative `M'`, which binds it to this
+//! composite and to the application context.
 //!
-//! Serialised `HybridSignature` format:
-//!   4 bytes (u32 BE) — ML-DSA signature length
-//!   N bytes          — ML-DSA-65 signature
-//!   64 bytes         — Ed25519 signature
+//! Serialised forms (as in the draft):
+//!   signature   `mldsa_sig (3309) || ed25519_sig (64)`        = 3373 bytes
+//!   public key  `mldsa_vk (1952)  || ed25519_vk (32)`         = 1984 bytes
+//!   private key `mldsa_seed (32)  || ed25519_seed (32)`       =   64 bytes
 
 use ed25519_dalek::{Signature as Ed25519Signature, SigningKey as Ed25519SigningKey};
 use ml_dsa::{
@@ -22,6 +25,35 @@ use crate::{Error, Result};
 const MLDSA65_SIG_LEN: usize = 3309;
 /// Byte length of an ML-DSA-65 verifying key (fixed by the standard).
 const MLDSA65_VK_LEN: usize = 1952;
+/// Composite signature: ML-DSA-65 signature then Ed25519 signature.
+pub const HYBRID_SIG_LEN: usize = MLDSA65_SIG_LEN + 64; // 3373
+/// Composite public key: ML-DSA-65 verifying key then Ed25519 public key.
+pub const HYBRID_VK_LEN: usize = MLDSA65_VK_LEN + 32; // 1984
+
+/// `Prefix` of draft-ietf-lamps-pq-composite-sigs: the ASCII bytes of
+/// "CompositeAlgorithmSignatures2025".
+const PREFIX: &[u8] = b"CompositeAlgorithmSignatures2025";
+/// `Label` of id-MLDSA65-Ed25519-SHA512. Also the context passed to ML-DSA.
+const LABEL: &[u8] = b"COMPSIG-MLDSA65-Ed25519-SHA512";
+
+/// The message representative of the composite:
+/// `M' = Prefix || Label || len(ctx) || ctx || SHA-512(M)`.
+///
+/// Both components sign `M'`, never `M`: the prefix and label bind each half
+/// to this composite, so the Ed25519 half is not a valid signature of `M` on
+/// its own (no "stripping"), and the context binds the signature to the
+/// application's use.
+fn message_representative(message: &[u8], ctx: &[u8]) -> Result<Vec<u8>> {
+    use sha2::{Digest, Sha512};
+    let ctx_len = u8::try_from(ctx.len()).map_err(|_| Error::InvalidContext)?;
+    let mut m = Vec::with_capacity(PREFIX.len() + LABEL.len() + 1 + ctx.len() + 64);
+    m.extend_from_slice(PREFIX);
+    m.extend_from_slice(LABEL);
+    m.push(ctx_len);
+    m.extend_from_slice(ctx);
+    m.extend_from_slice(&Sha512::digest(message));
+    Ok(m)
+}
 
 /// Hybrid signing (secret) key. Both seeds are wrapped in `secrecy::Secret`
 /// per the AGENTS.md hard constraint that "all sensitive material wrapped in
@@ -32,6 +64,28 @@ pub struct HybridDsaSigningKey {
     mldsa_seed: SecretBox<[u8; 32]>,
     /// Ed25519 signing key seed (32 bytes).
     ed25519_seed: SecretBox<[u8; 32]>,
+}
+
+impl HybridDsaSigningKey {
+    /// Serialise as the draft does: `mldsa_seed || ed25519_seed` (64 bytes).
+    pub fn to_bytes(&self) -> Zeroizing<[u8; 64]> {
+        let mut out = Zeroizing::new([0u8; 64]);
+        out[..32].copy_from_slice(self.mldsa_seed.expose_secret());
+        out[32..].copy_from_slice(self.ed25519_seed.expose_secret());
+        out
+    }
+
+    /// Deserialise `mldsa_seed || ed25519_seed`.
+    pub fn from_bytes(bytes: &[u8; 64]) -> Self {
+        let mut mldsa = Zeroizing::new([0u8; 32]);
+        let mut ed = Zeroizing::new([0u8; 32]);
+        mldsa.copy_from_slice(&bytes[..32]);
+        ed.copy_from_slice(&bytes[32..]);
+        Self {
+            mldsa_seed: SecretBox::new(Box::new(std::mem::take(&mut *mldsa))),
+            ed25519_seed: SecretBox::new(Box::new(std::mem::take(&mut *ed))),
+        }
+    }
 }
 
 /// Hybrid verifying (public) key.
@@ -47,97 +101,65 @@ pub struct HybridSignature {
 }
 
 impl HybridSignature {
-    /// Serialise: `u32_be(len_mldsa) || mldsa_sig || ed25519_sig`.
+    /// Serialise as the draft does: `mldsa_sig || ed25519_sig` (3373 bytes).
     pub fn to_bytes(&self) -> Vec<u8> {
-        let len = self.mldsa_sig.len() as u32;
-        let mut out = Vec::with_capacity(4 + self.mldsa_sig.len() + 64);
-        out.extend_from_slice(&len.to_be_bytes());
+        let mut out = Vec::with_capacity(HYBRID_SIG_LEN);
         out.extend_from_slice(&self.mldsa_sig);
         out.extend_from_slice(&self.ed25519_sig);
         out
     }
 
-    /// Deserialise from bytes. Enforces the exact ML-DSA-65 signature length
-    /// (3309 bytes) — any other length is rejected.
+    /// Deserialise `mldsa_sig || ed25519_sig`; any other length is rejected.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != 4 + MLDSA65_SIG_LEN + 64 {
+        if bytes.len() != HYBRID_SIG_LEN {
             return Err(Error::Verify);
         }
-        let ml_len_bytes: [u8; 4] = bytes[..4].try_into().map_err(|_| Error::Verify)?;
-        let ml_len = u32::from_be_bytes(ml_len_bytes) as usize;
-        if ml_len != MLDSA65_SIG_LEN {
-            return Err(Error::Verify);
-        }
-        let mldsa_sig = bytes[4..4 + ml_len].to_vec();
         let mut ed25519_sig = [0u8; 64];
-        ed25519_sig.copy_from_slice(&bytes[4 + ml_len..]);
+        ed25519_sig.copy_from_slice(&bytes[MLDSA65_SIG_LEN..]);
         Ok(Self {
-            mldsa_sig,
+            mldsa_sig: bytes[..MLDSA65_SIG_LEN].to_vec(),
             ed25519_sig,
         })
     }
 }
 
 impl HybridDsaVerifyingKey {
-    /// Serialise: `u32_be(len_mldsa_vk) || mldsa_vk || ed25519_vk`.
+    /// Serialise as the draft does: `mldsa_vk || ed25519_vk` (1984 bytes).
     pub fn to_bytes(&self) -> Vec<u8> {
-        let len = self.mldsa_vk_bytes.len() as u32;
-        let mut out = Vec::with_capacity(4 + self.mldsa_vk_bytes.len() + 32);
-        out.extend_from_slice(&len.to_be_bytes());
+        let mut out = Vec::with_capacity(HYBRID_VK_LEN);
         out.extend_from_slice(&self.mldsa_vk_bytes);
         out.extend_from_slice(&self.ed25519_vk_bytes);
         out
     }
 
-    /// Deserialise from bytes. Enforces the exact ML-DSA-65 verifying key length
-    /// (1952 bytes) — any other length is rejected.
+    /// Deserialise `mldsa_vk || ed25519_vk`; any other length is rejected.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self> {
-        if bytes.len() != 4 + MLDSA65_VK_LEN + 32 {
+        if bytes.len() != HYBRID_VK_LEN {
             return Err(Error::InvalidKey);
         }
-        let ml_len_bytes: [u8; 4] = bytes[..4].try_into().map_err(|_| Error::InvalidKey)?;
-        let ml_len = u32::from_be_bytes(ml_len_bytes) as usize;
-        if ml_len != MLDSA65_VK_LEN {
-            return Err(Error::InvalidKey);
-        }
-        let mldsa_vk_bytes = bytes[4..4 + ml_len].to_vec();
         let mut ed25519_vk_bytes = [0u8; 32];
-        ed25519_vk_bytes.copy_from_slice(&bytes[4 + ml_len..]);
+        ed25519_vk_bytes.copy_from_slice(&bytes[MLDSA65_VK_LEN..]);
         Ok(Self {
-            mldsa_vk_bytes,
+            mldsa_vk_bytes: bytes[..MLDSA65_VK_LEN].to_vec(),
             ed25519_vk_bytes,
         })
     }
 }
 
-/// Generate a fresh hybrid keypair.
+/// Generate a fresh composite key pair. Both component keys are generated
+/// independently, as the draft requires (no key reuse across schemes).
 pub fn hybrid_keygen() -> (HybridDsaSigningKey, HybridDsaVerifyingKey) {
-    // ML-DSA-65 (Generate trait uses OsRng internally with getrandom feature)
     let mldsa_sk = MlDsaSigningKey::<MlDsa65>::generate();
     let mldsa_vk = mldsa_sk.verifying_key();
     let mldsa_seed_exported = mldsa_sk.to_bytes(); // KeyExport::to_bytes() → Seed = [u8; 32]
     let mldsa_vk_exported = mldsa_vk.to_bytes(); // KeyExport::to_bytes() → Key<VK>
 
-    // Copy the exported 32-byte seed into a fixed-size, drop-zeroizing buffer.
     let mut mldsa_seed_buf = Zeroizing::new([0u8; 32]);
-    let seed_bytes = AsRef::<[u8]>::as_ref(&mldsa_seed_exported);
-    // The seed length is guaranteed by the `MlDsa65` type (`KeyExport::to_bytes`
-    // returns a fixed-size 32-byte seed). A `debug_assert_eq!` here would still
-    // be a panic path — undesirable in a crypto crate that also runs with
-    // `panic = "abort"` in release. `copy_from_slice` below is the authoritative
-    // length check: if the upstream contract ever changed, it would panic in
-    // both debug and release with the same abort behaviour we cannot prevent.
-    mldsa_seed_buf.copy_from_slice(seed_bytes);
-    // Move the staging buffer into the `Secret` wrapper via `mem::take` so the
-    // staging slot is wiped in the same step (no transient duplicate seed).
+    mldsa_seed_buf.copy_from_slice(AsRef::<[u8]>::as_ref(&mldsa_seed_exported));
     let mldsa_seed = SecretBox::new(Box::new(std::mem::take(&mut *mldsa_seed_buf)));
 
-    // Ed25519
     let ed25519_sk = Ed25519SigningKey::generate(&mut crate::os_rng());
     let ed25519_vk = ed25519_sk.verifying_key();
-
-    // Same staged-move pattern for the Ed25519 seed so its bytes never live
-    // outside a wiping container.
     let mut ed25519_seed_buf = Zeroizing::new(ed25519_sk.to_bytes());
     let ed25519_seed = SecretBox::new(Box::new(std::mem::take(&mut *ed25519_seed_buf)));
 
@@ -153,22 +175,47 @@ pub fn hybrid_keygen() -> (HybridDsaSigningKey, HybridDsaVerifyingKey) {
     )
 }
 
-/// Sign `message` with the hybrid signing key.
-pub fn hybrid_sign(sk: &HybridDsaSigningKey, message: &[u8]) -> Result<HybridSignature> {
-    // Reconstruct ML-DSA-65 signing key from stored 32-byte seed (KeyInit::new_from_slice)
+/// The verifying key of a signing key.
+pub fn hybrid_verifying_key(sk: &HybridDsaSigningKey) -> Result<HybridDsaVerifyingKey> {
     let mldsa_sk = MlDsaSigningKey::<MlDsa65>::new_from_slice(sk.mldsa_seed.expose_secret())
         .map_err(|_| Error::InvalidKey)?;
+    let mldsa_vk = mldsa_sk.verifying_key().to_bytes();
+    let ed25519_vk = Ed25519SigningKey::from_bytes(sk.ed25519_seed.expose_secret()).verifying_key();
+    Ok(HybridDsaVerifyingKey {
+        mldsa_vk_bytes: AsRef::<[u8]>::as_ref(&mldsa_vk).to_vec(),
+        ed25519_vk_bytes: ed25519_vk.to_bytes(),
+    })
+}
 
-    // Reconstruct Ed25519 signing key from seed bytes
-    let ed25519_sk = Ed25519SigningKey::from_bytes(sk.ed25519_seed.expose_secret());
+/// Sign `message` with an empty application context. See
+/// [`hybrid_sign_with_context`].
+pub fn hybrid_sign(sk: &HybridDsaSigningKey, message: &[u8]) -> Result<HybridSignature> {
+    hybrid_sign_with_context(sk, message, b"")
+}
 
-    // Sign with ML-DSA-65
-    let mldsa_sig = mldsa_sk.sign(message);
-    let mldsa_sig_bytes = mldsa_sig.to_bytes(); // SignatureEncoding::to_bytes() → EncodedSignature
+/// Composite-ML-DSA.Sign of draft-ietf-lamps-pq-composite-sigs for
+/// id-MLDSA65-Ed25519-SHA512: both components sign `M'`
+/// ([`message_representative`]); ML-DSA-65 with the composite label as its
+/// context and in **hedged** mode (fresh randomness, as FIPS 204 recommends),
+/// Ed25519 as usual. `ctx` is at most 255 bytes.
+pub fn hybrid_sign_with_context(
+    sk: &HybridDsaSigningKey,
+    message: &[u8],
+    ctx: &[u8],
+) -> Result<HybridSignature> {
+    let m_prime = message_representative(message, ctx)?;
 
-    // Sign with Ed25519
+    let mldsa_sk = MlDsaSigningKey::<MlDsa65>::new_from_slice(sk.mldsa_seed.expose_secret())
+        .map_err(|_| Error::InvalidKey)?;
+    let mldsa_sig = mldsa_sk
+        .expanded_key()
+        .sign_randomized(&m_prime, LABEL, &mut crate::os_rng())
+        .map_err(|_| Error::Sign)?;
+    let mldsa_sig_bytes = mldsa_sig.to_bytes();
+
     use ed25519_dalek::Signer as _;
-    let ed25519_sig = ed25519_sk.sign(message);
+    let ed25519_sk = Ed25519SigningKey::from_bytes(sk.ed25519_seed.expose_secret());
+    let ed25519_sig = ed25519_sk.sign(&m_prime);
 
     Ok(HybridSignature {
         mldsa_sig: AsRef::<[u8]>::as_ref(&mldsa_sig_bytes).to_vec(),
@@ -176,32 +223,41 @@ pub fn hybrid_sign(sk: &HybridDsaSigningKey, message: &[u8]) -> Result<HybridSig
     })
 }
 
-/// Verify a hybrid signature. Both ML-DSA-65 and Ed25519 must be valid.
+/// Verify with an empty application context. See
+/// [`hybrid_verify_with_context`].
 pub fn hybrid_verify(
     vk: &HybridDsaVerifyingKey,
     message: &[u8],
     sig: &HybridSignature,
 ) -> Result<()> {
-    // Reconstruct ML-DSA-65 verifying key from stored bytes (KeyInit::new_from_slice)
+    hybrid_verify_with_context(vk, message, sig, b"")
+}
+
+/// Composite-ML-DSA.Verify: valid only if **both** component signatures of
+/// `M'` are valid (ML-DSA-65 with the composite label as context, Ed25519
+/// strict).
+pub fn hybrid_verify_with_context(
+    vk: &HybridDsaVerifyingKey,
+    message: &[u8],
+    sig: &HybridSignature,
+    ctx: &[u8],
+) -> Result<()> {
+    let m_prime = message_representative(message, ctx).map_err(|_| Error::Verify)?;
+
     let mldsa_vk = MlDsaVerifyingKey::<MlDsa65>::new_from_slice(vk.mldsa_vk_bytes.as_slice())
         .map_err(|_| Error::Verify)?;
-
-    // Reconstruct Ed25519 verifying key
     let ed25519_vk =
         ed25519_dalek::VerifyingKey::from_bytes(&vk.ed25519_vk_bytes).map_err(|_| Error::Verify)?;
 
-    // Verify ML-DSA-65
-    use ml_dsa::signature::Verifier as _;
     let mldsa_sig = ml_dsa::Signature::<MlDsa65>::try_from(sig.mldsa_sig.as_slice())
         .map_err(|_| Error::Verify)?;
-    mldsa_vk
-        .verify(message, &mldsa_sig)
-        .map_err(|_| Error::Verify)?;
+    if !mldsa_vk.verify_with_context(&m_prime, LABEL, &mldsa_sig) {
+        return Err(Error::Verify);
+    }
 
-    // Verify Ed25519 (strict, like `ed25519::verify`).
     let ed25519_sig = Ed25519Signature::from_bytes(&sig.ed25519_sig);
     ed25519_vk
-        .verify_strict(message, &ed25519_sig)
+        .verify_strict(&m_prime, &ed25519_sig)
         .map_err(|_| Error::Verify)?;
 
     Ok(())
