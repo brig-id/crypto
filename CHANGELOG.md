@@ -7,7 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Changed
+### Changed (breaking: formats of the hybrid KEM and signatures)
+
+- The hybrid KEM is **X-Wing** (draft-connolly-cfrg-xwing-kem, RustCrypto
+  `x-wing`) instead of a hand-made `HKDF(ss_mlkem || ss_x25519)` that did not
+  bind the X25519 keys. The secret key is the 32-byte X-Wing seed (was 96
+  bytes); public key and ciphertext keep their sizes; a non-contributory X25519
+  share is still refused. Checked against the draft's test vectors.
+- The hybrid signature is **composite ML-DSA-65 + Ed25519** of
+  draft-ietf-lamps-pq-composite-sigs-19 (id-MLDSA65-Ed25519-SHA512): both halves
+  sign `M' = Prefix || Label || len(ctx) || ctx || SHA-512(M)`, so the Ed25519
+  half is not a standalone signature of the message, and an application context
+  can be bound (`hybrid_sign_with_context`). ML-DSA signs in hedged mode. Keys
+  and signatures use the draft's fixed-length serialisations (no length prefix).
+  Checked against the draft's test vector.
+- Nothing in brig·id uses either yet (audit finding S4).
+
+### Removed
+
+- `x25519-dalek` (X-Wing brings its own), and the internal `hkdf_expand_32`.
 
 - Ed25519 verification is strict (`verify_strict`), in `ed25519::verify` and
   in the Ed25519 half of the hybrid signature: weak public keys and
