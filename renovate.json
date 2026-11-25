@@ -1,0 +1,11 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>brig-id/.github"],
+  "packageRules": [
+    {
+      "description": "sha3 0.12 dropped the digest::core_api::CoreProxy impl, which breaks Hkdf<Sha3_256>/Hmac<Sha3_256>. Remove once hmac/hkdf follow.",
+      "matchPackageNames": ["sha3"],
+      "allowedVersions": "<0.12.0"
+    }
+  ]
+}

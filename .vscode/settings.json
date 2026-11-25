@@ -9,6 +9,7 @@
     "fuzz",
     "ci",
     "deps",
+    "release",
     "ai",
     "docs"
   ]
