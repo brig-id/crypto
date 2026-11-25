@@ -1,11 +1,14 @@
 # Changelog
 
-All notable changes to `brigid-crypto` are documented in this file.
+All notable changes to `brigid-crypto` are documented in this file. This project
+adheres to [Semantic Versioning](https://semver.org/).
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/).
+From the release after 0.1.0 on, each entry is written by release-please from the
+commits merged since the last release: there is no "Unreleased" section to keep by
+hand. What a list of commits does not say is in the pull requests it links to. The
+notes below, written by hand, cover what was merged between 0.1.0 and that release.
 
-## [Unreleased]
+## Between 0.1.0 and the first release by release-please
 
 ### Changed (breaking: formats of the hybrid KEM and signatures)
 
