@@ -2,10 +2,12 @@
 
 All notable changes to `brigid-crypto` are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/).
+From 0.2.0 on, each entry is written by release-please from the subjects of the
+Conventional Commits of the release; the entries up to 0.2.0 were written by hand,
+in the [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format. This project
+adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] - 2026-11-25
 
 ### Changed (breaking: formats of the hybrid KEM and signatures)
 

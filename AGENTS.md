@@ -82,6 +82,7 @@ Format: `type(scope): <emoji> description`
 | `fuzz` | Fuzz targets (`fuzz/`) |
 | `ci` | `.github/workflows/` |
 | `deps` | Dependency bumps |
+| `release` | A release pull request (release-please) |
 
 **Do not use a scope outside this list.** If a new module is added, update this table
 and `.vscode/settings.json`.
@@ -92,6 +93,20 @@ fix(aes): 🐛 reject nonces shorter than 96 bits
 test(hkdf): ✅ add domain separation collision test
 ci(ci): 👷 add conventional commit check
 ```
+
+## Releases
+
+Nobody tags by hand. `.github/workflows/release.yml` (release-please, through the
+shared workflow of brig-id/.github) keeps a release pull request up to date: the next
+version (from the commit types since the last release) and its `CHANGELOG.md` entry.
+**Merging that pull request is the release**: the tag `vX.Y.Z` and the GitHub Release
+follow, and Renovate proposes the new tag to the core and the servers. So:
+
+- the commit type decides the version: `feat` is a minor, `fix` a patch, a `!` or a
+  `BREAKING CHANGE:` footer a minor too while the version is 0.x;
+- the commit subject is the changelog line: write it for someone reading the release;
+- do not edit `CHANGELOG.md`, `.release-please-manifest.json` or the version in
+  `Cargo.toml` by hand.
 
 ## Commands
 
