@@ -16,6 +16,12 @@ confidence-threshold = 0.8
 [advisories]
 version = 2
 yanked = "deny"
+# Unmaintained and unsound crates are refused wherever they are in what is
+# compiled, not only as direct dependencies. No exception: an advisory that
+# appears is fixed by an update, or argued here with its reason.
+unmaintained = "all"
+unsound = "all"
+ignore = []
 
 [bans]
 multiple-versions = "warn"
