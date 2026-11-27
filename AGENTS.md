@@ -82,7 +82,6 @@ Format: `type(scope): <emoji> description`
 | `fuzz` | Fuzz targets (`fuzz/`) |
 | `ci` | `.github/workflows/` |
 | `deps` | Dependency bumps |
-| `release` | A release pull request (release-please) |
 
 **Do not use a scope outside this list.** If a new module is added, update this table
 and `.vscode/settings.json`.
@@ -96,17 +95,22 @@ ci(ci): 👷 add conventional commit check
 
 ## Releases
 
-Nobody tags by hand. `.github/workflows/release.yml` (release-please, through the
-shared workflow of brig-id/.github) keeps a release pull request up to date: the next
-version (from the commit types since the last release) and its `CHANGELOG.md` entry.
-**Merging that pull request is the release**: the tag `vX.Y.Z` and the GitHub Release
-follow, and Renovate proposes the new tag to the core and the servers. So:
+crypto has no release of its own: no version to bump, no tag, no `CHANGELOG.md`. The
+core and the servers follow it at a commit of `main` (`branch = "main"` in their
+`Cargo.toml`, the commit in their `Cargo.lock`), and a server's release notes list
+what changed here since the release before, from the commit subjects. So:
 
-- the commit type decides the version: `feat` is a minor, `fix` a patch, a `!` or a
-  `BREAKING CHANGE:` footer a minor too while the version is 0.x;
-- the commit subject is the changelog line: write it for someone reading the release;
-- do not edit `CHANGELOG.md`, `.release-please-manifest.json` or the version in
-  `Cargo.toml` by hand.
+- one pull request per change. A change that needs the core or a server too is a pull
+  request there as well, **on a branch of the same name**: the `integration` job
+  (brig-id/.github, `integration.yml`) runs the core's tests and builds the servers
+  with this change and those branches, before anything is merged. They are merged from
+  crypto down to the servers;
+- the commit type says whether a person running a server would notice: `feat`, `fix`,
+  `perf` and `revert` are listed in the server's release notes and are a reason for a
+  release; `build`, `ci`, `chore`, `docs`, `test` and `refactor` are not. A `!` or a
+  `BREAKING CHANGE:` footer is announced first;
+- the commit subject is the line people read in those notes: write it for them;
+- `brigid release` (brig-id/cli) shows what the servers do not follow yet.
 
 ## Commands
 
