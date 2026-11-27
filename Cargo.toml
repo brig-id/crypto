@@ -1,5 +1,7 @@
 [package]
 name = "brigid-crypto"
+# Not a release number any more: crypto has no release of its own, the core and
+# the servers follow it at a commit of main. It stays as it was at the last tag.
 version = "0.2.0"
 edition = "2024"
 license = "LGPL-3.0-or-later"
