@@ -3,6 +3,9 @@
 //! All sensitive types are wrapped in `secrecy::SecretBox` or
 //! `zeroize::Zeroizing` and zeroed on drop. No `unwrap()` on error paths.
 
+// Tests set environment variables, which is `unsafe` since Rust 2024.
+#![cfg_attr(not(test), forbid(unsafe_code))]
+
 pub mod aes;
 pub mod dsa;
 pub mod ed25519;
